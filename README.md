@@ -1,9 +1,25 @@
 # WavyFi
 
-A lightweight inSSIDer-style scanner for Windows, built with C# / WPF
-(no third-party dependencies). Its goal is not raw detail but actionable
-advice: see what's around you (WiFi networks + WiFi Direct devices) and
-get a recommendation for the optimal settings of your own network.
+WavyFi listens to the airwaves around a Windows machine and turns what it
+hears into advice: which channel your own WiFi network should use, which
+band is worth moving to, and which security settings need fixing. Along
+the way it surfaces a layer most WiFi analyzers ignore entirely — the
+**WiFi Direct** devices (phones, TVs, printers, Miracast receivers)
+advertising peer-to-peer around you.
+
+The channel-occupancy view takes its inspiration from inSSIDer, but
+WavyFi goes its own way:
+
+- **recommendation-first** — a congestion-scoring engine tells you what
+  to *change*, not just what exists;
+- **WiFi Direct discovery** side by side with infrastructure networks;
+- **multi-adapter scanning** — several radios at once, one row per
+  adapter, for comparing reception;
+- **persistence of vision** — networks fade instead of blinking out;
+  peers are kept for the whole session (their advertising is bursty);
+- **a full CLI** (`scan` / `p2p` verbs) with filters, sorting and CSV
+  for scripting — same engine, no window;
+- C# / WPF with **zero third-party dependencies**.
 
 ## Features
 
@@ -47,13 +63,14 @@ get a recommendation for the optimal settings of your own network.
   (among 1/6/11) and 5 GHz (non-DFS, with a DFS hint when quieter),
   overlap analysis for your own network, and security upgrade advice.
 
-## Build & run
+## Build, run, test
 
 Requires the .NET 10 SDK on Windows 10 19041+.
 
 ```
-dotnet build
-dotnet run
+dotnet build                     # whole solution
+dotnet run --project src/WavyFi  # the GUI
+dotnet test                      # unit tests (parser, rates, advisor, ...)
 ```
 
 If the network list is empty, enable Location access in
@@ -155,13 +172,13 @@ Wireshark project:
   by the Wireshark project. Upstream regenerates it weekly — per their
   request, do not fetch it more often than that.
 
-The snapshot lives at `Resources/manuf.gz` (embedded resource, last
-updated 2026-07-21). To refresh it:
+The snapshot lives at `src/WavyFi.Core/Resources/manuf.gz` (embedded
+resource, last updated 2026-07-21). To refresh it:
 
 ```sh
-curl -sL https://www.wireshark.org/download/automated/data/manuf -o Resources/manuf
-gzip -9 -f Resources/manuf   # produces Resources/manuf.gz
-dotnet build                 # re-embeds the resource
+curl -sL https://www.wireshark.org/download/automated/data/manuf -o src/WavyFi.Core/Resources/manuf
+gzip -9 -f src/WavyFi.Core/Resources/manuf   # produces manuf.gz
+dotnet build                                 # re-embeds the resource
 ```
 
 Only plain 24-bit OUI rows are used (the rarer /28 and /36 sub-allocations
@@ -172,12 +189,22 @@ never appear in the registry and are shown as "(unknown vendor)".
 
 | Path | Purpose |
 |---|---|
-| `Wlan/` | P/Invoke bindings and scanner over the Native WiFi API |
-| `WifiDirect/` | `DeviceWatcher`-based WiFi Direct peer discovery |
-| `Analysis/` | Channel congestion scoring and recommendation text |
-| `Models/` | Data models and the persistent scan-to-scan network store |
-| `Controls/` | Custom-drawn channel occupancy and signal-over-time graphs |
-| `Data/` | Loader for the embedded OUI (MAC prefix → vendor) database |
-| `Resources/` | Embedded assets (`manuf.gz` OUI snapshot, `WavyFi.ico`) |
-| `tools/ScanTest/` | Console harness for testing the scanner without the UI |
-| `tools/IconGen/` | Regenerates `Resources/WavyFi.ico` (channel-arcs design): `dotnet run --project tools/IconGen -- Resources/WavyFi.ico` |
+| `src/WavyFi.Core/` | The engine — no UI dependencies |
+| `src/WavyFi.Core/Wlan/` | Native WiFi API bindings, scanner, beacon IE parser, PHY-rate math |
+| `src/WavyFi.Core/WifiDirect/` | `DeviceWatcher`-based WiFi Direct peer discovery |
+| `src/WavyFi.Core/Analysis/` | Channel congestion scoring and recommendation text |
+| `src/WavyFi.Core/Models/` | Data models, persistent network/peer stores, formatters |
+| `src/WavyFi.Core/Data/` | Loader for the embedded OUI (MAC prefix → vendor) database |
+| `src/WavyFi/` | WPF front-end and the CLI mode |
+| `src/WavyFi/Controls/` | Custom-drawn channel occupancy and signal-over-time graphs |
+| `src/WavyFi/Cli/` | The `scan` / `p2p` console verbs |
+| `src/WavyFi/Themes/` | The dark theme resource dictionary |
+| `src/WavyFi/Settings/` | Registry persistence of window/columns/font preferences |
+| `tests/WavyFi.Core.Tests/` | Unit tests (synthetic-beacon parser tests, rates, advisor, stores) |
+| `tools/ScanTest/` | Console harness for live-testing the scanner without the UI |
+| `tools/IconGen/` | Regenerates the icon: `dotnet run --project tools/IconGen -- src/WavyFi/Resources/WavyFi.ico` |
+
+## License
+
+MIT — see [LICENSE](LICENSE). The embedded OUI registry snapshot is
+credited above.
