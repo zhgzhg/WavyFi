@@ -18,8 +18,11 @@ public partial class MainWindow : Window
     private readonly WifiScanner _scanner;
     private readonly WifiDirectWatcher _wifiDirect;
     private readonly DispatcherTimer _timer;
+    private readonly DispatcherTimer _peerTimer;
     private readonly NetworkStore _store = new();
     private readonly ListCollectionView _view;
+    private readonly System.Collections.ObjectModel.ObservableCollection<PeerEntry> _peerEntries = new();
+    private readonly ListCollectionView _peersView;
     private bool _refreshing;
 
     public MainWindow()
@@ -34,10 +37,24 @@ public partial class MainWindow : Window
         _view.LiveSortingProperties.Add(nameof(NetworkEntry.IsConnected));
         _view.LiveSortingProperties.Add(nameof(NetworkEntry.Rssi));
         NetworksGrid.ItemsSource = _view;
-        Resources["ColumnChooserMenu"] = BuildColumnChooserMenu();
-        ApplyColumnHeaderTooltips();
+
+        _peersView = (ListCollectionView)CollectionViewSource.GetDefaultView(_peerEntries);
+        _peersView.Filter = PeerFilterPredicate;
+        _peersView.SortDescriptions.Add(new SortDescription(nameof(PeerEntry.SignalDbm), ListSortDirection.Descending));
+        PeersGrid.ItemsSource = _peersView;
+
+        SetupGridHeaders(NetworksGrid, compact: false);
+        SetupGridHeaders(PeersGrid, compact: true);
 
         _scanner = new WifiScanner();
+        // Read results the moment a sweep finishes instead of waiting for the
+        // next timer tick — first data lands ~2-4 s after launch. Read-only:
+        // triggering another scan here would loop scan -> complete -> scan.
+        _scanner.ScanCompleted += () => Dispatcher.BeginInvoke(async () =>
+        {
+            if (ScanToggle.IsChecked == true)
+                await RefreshAsync(triggerScan: false);
+        });
         ReloadAdapterList();
         AdapterCombo.IsEnabled = ScanToggle.IsChecked != true;
         _wifiDirect = new WifiDirectWatcher();
@@ -45,6 +62,17 @@ public partial class MainWindow : Window
 
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
         _timer.Tick += async (_, _) => await RefreshAsync();
+
+        // Peer ages keep counting regardless of the scan toggle — WiFi Direct
+        // discovery runs independently of the WLAN scan loop.
+        _peerTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
+        _peerTimer.Tick += (_, _) =>
+        {
+            var now = DateTime.Now;
+            foreach (var p in _peerEntries) p.Tick(now);
+            _peersView.Refresh();
+        };
+        _peerTimer.Start();
 
         Loaded += async (_, _) =>
         {
@@ -58,12 +86,13 @@ public partial class MainWindow : Window
         Closed += (_, _) =>
         {
             _timer.Stop();
+            _peerTimer.Stop();
             _wifiDirect.Dispose();
             _scanner.Dispose();
         };
     }
 
-    private async Task RefreshAsync()
+    private async Task RefreshAsync(bool triggerScan = true)
     {
         if (_refreshing) return;
         _refreshing = true;
@@ -71,7 +100,7 @@ public partial class MainWindow : Window
         {
             var networks = await Task.Run(() =>
             {
-                _scanner.TriggerScan();
+                if (triggerScan) _scanner.TriggerScan();
                 return _scanner.GetNetworks();
             });
 
@@ -128,24 +157,24 @@ public partial class MainWindow : Window
     }
 
     /// <summary>Plain click toggles: clicking an already-selected row unselects
-    /// it, clicking empty grid space clears the selection.</summary>
-    private void NetworksGrid_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    /// it, clicking empty grid space clears the selection. Shared by both grids.</summary>
+    private void Grid_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (Keyboard.Modifiers != ModifierKeys.None) return;
+        if (sender is not DataGrid grid || Keyboard.Modifiers != ModifierKeys.None) return;
 
         var source = e.OriginalSource as DependencyObject;
         var row = FindParent<DataGridRow>(source);
         if (row is null)
         {
             if (FindParent<DataGridColumnHeader>(source) is null &&
-                FindParent<System.Windows.Controls.Primitives.ScrollBar>(source) is null)
-                NetworksGrid.UnselectAll();
+                FindParent<ScrollBar>(source) is null)
+                grid.UnselectAll();
             return;
         }
 
         if (row.IsSelected)
         {
-            NetworksGrid.SelectedItems.Remove(row.Item);
+            grid.SelectedItems.Remove(row.Item);
             e.Handled = true;
         }
     }
@@ -249,9 +278,10 @@ public partial class MainWindow : Window
 
     private void Filter_Changed(object sender, RoutedEventArgs e)
     {
-        if (_view is null) return; // fires during InitializeComponent
+        if (_view is null || _peersView is null) return; // fires during InitializeComponent
         MinRssiLabel.Text = $"{(int)MinRssiSlider.Value} dBm";
         _view.Refresh();
+        _peersView.Refresh();
         UpdateGraphs();
     }
 
@@ -270,29 +300,38 @@ public partial class MainWindow : Window
         ["WPS"] = "WiFi Protected Setup version advertised by the AP, or \"-\" when not supported.",
         ["Rates (Mbps)"] = "Legacy data rates advertised by the AP, in Mbps.",
         ["BSSID"] = "MAC address of this access point radio (one SSID can have several).",
-        ["Vendor"] = "AP manufacturer resolved from the BSSID prefix (embedded IEEE OUI registry).",
-        ["Last seen"] = "Time since this network last appeared in a scan; faded rows are stale.",
+        ["Vendor"] = "Manufacturer resolved from the MAC prefix (embedded IEEE OUI registry).",
+        ["Last seen"] = "Time since last seen; faded rows are stale.",
+        ["Name"] = "Device name advertised over WiFi Direct.",
+        ["Paired"] = "Whether this device is paired with Windows.",
+        ["Type"] = "Device category from the WPS Primary Device Type attribute.",
+        ["MAC"] = "MAC address of the device's WiFi Direct interface.",
     };
 
-    private void ApplyColumnHeaderTooltips()
+    /// <summary>Gives every column header its tooltip and the grid's own
+    /// column-chooser context menu (built per grid, since each has its own
+    /// column set). Compact grids get tighter header padding.</summary>
+    private void SetupGridHeaders(DataGrid grid, bool compact)
     {
+        var menu = BuildColumnChooserMenu(grid);
         var baseStyle = (Style)FindResource(typeof(DataGridColumnHeader));
-        foreach (var col in NetworksGrid.Columns)
+        foreach (var col in grid.Columns)
         {
+            var style = new Style(typeof(DataGridColumnHeader), baseStyle);
+            style.Setters.Add(new Setter(FrameworkElement.ContextMenuProperty, menu));
+            if (compact)
+                style.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(6, 3, 6, 3)));
             if (col.Header is string header &&
                 ColumnDescriptions.TryGetValue(header, out var description))
-            {
-                var style = new Style(typeof(DataGridColumnHeader), baseStyle);
                 style.Setters.Add(new Setter(FrameworkElement.ToolTipProperty, description));
-                col.HeaderStyle = style;
-            }
+            col.HeaderStyle = style;
         }
     }
 
-    private ContextMenu BuildColumnChooserMenu()
+    private static ContextMenu BuildColumnChooserMenu(DataGrid grid)
     {
         var menu = new ContextMenu();
-        foreach (var column in NetworksGrid.Columns)
+        foreach (var column in grid.Columns)
         {
             var col = column;
             var item = new MenuItem
@@ -309,35 +348,76 @@ public partial class MainWindow : Window
         return menu;
     }
 
-    private void PeersList_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    private void PeersGrid_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
     {
-        var item = FindParent<ListBoxItem>(e.OriginalSource as DependencyObject);
-        if (item is not null)
-            item.IsSelected = true;
+        var row = FindParent<DataGridRow>(e.OriginalSource as DependencyObject);
+        if (row is not null && !row.IsSelected)
+        {
+            PeersGrid.SelectedItems.Clear();
+            row.IsSelected = true;
+        }
     }
 
     private void CopyPeer_Click(object sender, RoutedEventArgs e)
     {
-        if (PeersList.SelectedItem is not WifiDirectPeer peer) return;
-        var name = peer.IsPaired ? $"{peer.Name} (paired)" : peer.Name;
-        TrySetClipboard(peer.Detail.Length > 0 ? $"{name}{Environment.NewLine}{peer.Detail}" : name);
+        if (PeersGrid.SelectedItem is not PeerEntry p) return;
+        var name = p.IsPaired ? $"{p.Name} (paired)" : p.Name;
+        var details = new[] { p.DeviceType, p.Vendor, p.Address, p.SignalText, p.LastSeenText }
+            .Where(s => s.Length > 0);
+        TrySetClipboard($"{name}{Environment.NewLine}{string.Join("  ·  ", details)}");
     }
 
     private void CopyPeerList_Click(object sender, RoutedEventArgs e)
     {
-        var peers = _wifiDirect.GetPeers();
+        var peers = _peersView.Cast<PeerEntry>().ToList(); // filtered, sorted view
         if (peers.Count == 0) return;
         TrySetClipboard(string.Join(Environment.NewLine, peers.Select(p =>
-            $"{p.Name}{(p.IsPaired ? " (paired)" : "")}\t{p.Detail}")));
+            string.Join("\t", p.Name + (p.IsPaired ? " (paired)" : ""),
+                p.SignalText, p.DeviceType, p.Vendor, p.Address, p.LastSeenText))));
     }
 
+    /// <summary>Merges the watcher snapshot into the observable collection,
+    /// updating entries in place so grid sorting and selection survive.</summary>
     private void UpdatePeersList()
     {
-        var selectedId = (PeersList.SelectedItem as WifiDirectPeer)?.Id;
-        var peers = _wifiDirect.GetPeers();
-        PeersList.ItemsSource = peers;
-        if (selectedId is not null)
-            PeersList.SelectedItem = peers.FirstOrDefault(p => p.Id == selectedId);
+        var now = DateTime.Now;
+        var byId = _peerEntries.ToDictionary(p => p.Id);
+        var seen = new HashSet<string>();
+
+        foreach (var peer in _wifiDirect.GetPeers())
+        {
+            seen.Add(peer.Id);
+            if (byId.TryGetValue(peer.Id, out var entry))
+                entry.UpdateFrom(peer, now);
+            else
+                _peerEntries.Add(new PeerEntry(peer, now));
+        }
+
+        for (int i = _peerEntries.Count - 1; i >= 0; i--)
+            if (!seen.Contains(_peerEntries[i].Id))
+                _peerEntries.RemoveAt(i);
+
+        _peersView.Refresh();
+    }
+
+    private bool PeerFilterPredicate(object item)
+    {
+        if (item is not PeerEntry p) return false;
+
+        var query = SearchBox.Text.Trim();
+        if (query.Length > 0 &&
+            !p.Name.Contains(query, StringComparison.OrdinalIgnoreCase) &&
+            !p.Address.Contains(query, StringComparison.OrdinalIgnoreCase) &&
+            !p.Vendor.Contains(query, StringComparison.OrdinalIgnoreCase) &&
+            !p.DeviceType.Contains(query, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        // With the slider raised, peers with no signal reading can't qualify.
+        if (MinRssiSlider.Value > MinRssiSlider.Minimum &&
+            (p.SignalDbm is not int signal || signal < MinRssiSlider.Value))
+            return false;
+
+        return true;
     }
 
     private bool _reloadingAdapters;

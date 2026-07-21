@@ -4,8 +4,21 @@ using WifiOptimizer.Wlan;
 
 using var scanner = new WifiScanner();
 Console.WriteLine($"Adapter: {scanner.InterfaceDescription}");
+
+var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+// RunContinuationsAsynchronously is required: otherwise the rest of Main
+// (including scanner.Dispose) runs on the native wlanapi callback thread,
+// and WlanCloseHandle deadlocks waiting for that callback to return.
+var scanDone = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+scanner.ScanCompleted += () =>
+{
+    Console.WriteLine($"Scan-complete notification after {stopwatch.ElapsedMilliseconds} ms");
+    scanDone.TrySetResult();
+};
+
 scanner.TriggerScan();
-await Task.Delay(4000);
+if (await Task.WhenAny(scanDone.Task, Task.Delay(8000)) != scanDone.Task)
+    Console.WriteLine("No scan-complete notification within 8 s (reading cache anyway)");
 
 var networks = scanner.GetNetworks();
 Console.WriteLine($"Found {networks.Count} BSS entries:\n");

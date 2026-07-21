@@ -8,11 +8,18 @@ public record WlanAdapter(Guid Guid, string Description);
 public sealed class WifiScanner : IDisposable
 {
     private readonly IntPtr _handle;
+    // Held in a field so the GC never collects the marshaled callback thunk
+    // while the native side can still invoke it.
+    private readonly WlanInterop.WlanNotificationCallback _notificationCallback;
     private Guid _interfaceGuid;
     private bool _hasInterface;
 
     public string InterfaceDescription { get; private set; } = "(no WiFi adapter)";
     public Guid CurrentAdapterGuid => _hasInterface ? _interfaceGuid : Guid.Empty;
+
+    /// <summary>Raised (on a native worker thread) when the selected adapter
+    /// finishes a scan sweep — the BSS cache is fresh at that moment.</summary>
+    public event Action? ScanCompleted;
 
     public WifiScanner()
     {
@@ -22,6 +29,22 @@ public sealed class WifiScanner : IDisposable
             throw new InvalidOperationException($"WlanOpenHandle failed: {result}");
 
         SelectFirstAdapter();
+
+        _notificationCallback = OnNotification;
+        WlanInterop.WlanRegisterNotification(
+            _handle, WlanInterop.NotificationSourceAcm, true,
+            _notificationCallback, IntPtr.Zero, IntPtr.Zero, out _);
+    }
+
+    private void OnNotification(ref WlanNotificationData data, IntPtr context)
+    {
+        // Scan-fail still means the sweep ended — read whatever landed.
+        if (data.NotificationSource == WlanInterop.NotificationSourceAcm &&
+            data.NotificationCode is WlanInterop.AcmScanComplete or WlanInterop.AcmScanFail &&
+            data.InterfaceGuid == _interfaceGuid)
+        {
+            ScanCompleted?.Invoke();
+        }
     }
 
     public IReadOnlyList<WlanAdapter> EnumerateAdapters()
@@ -475,6 +498,11 @@ public sealed class WifiScanner : IDisposable
     public void Dispose()
     {
         if (_handle != IntPtr.Zero)
+        {
+            WlanInterop.WlanRegisterNotification(
+                _handle, WlanInterop.NotificationSourceNone, true,
+                null, IntPtr.Zero, IntPtr.Zero, out _);
             WlanInterop.WlanCloseHandle(_handle, IntPtr.Zero);
+        }
     }
 }

@@ -15,7 +15,6 @@
             <Setter Property="Margin" Value="0,0,0,6"/>
         </Style>
         <Style TargetType="DataGridColumnHeader">
-            <Setter Property="ContextMenu" Value="{DynamicResource ColumnChooserMenu}"/>
             <Setter Property="Background" Value="#2C2C36"/>
             <Setter Property="Foreground" Value="#9BB4D9"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
@@ -117,7 +116,7 @@
 
             <DataGrid x:Name="NetworksGrid" Grid.Row="1"
                       SelectionChanged="NetworksGrid_SelectionChanged"
-                      PreviewMouseLeftButtonDown="NetworksGrid_PreviewMouseLeftButtonDown"
+                      PreviewMouseLeftButtonDown="Grid_PreviewMouseLeftButtonDown"
                       PreviewMouseRightButtonDown="NetworksGrid_PreviewMouseRightButtonDown"
                       ClipboardCopyMode="ExcludeHeader"
                       AutoGenerateColumns="False" IsReadOnly="True"
@@ -193,39 +192,44 @@
             <DockPanel Grid.Row="0">
                 <TextBlock DockPanel.Dock="Top" Style="{StaticResource SectionHeader}"
                            Text="WIFI DIRECT DEVICES"/>
-                <ListBox x:Name="PeersList" Background="#26262E" Foreground="#E8E8EC"
-                         BorderThickness="0"
-                         PreviewMouseRightButtonDown="PeersList_PreviewMouseRightButtonDown">
-                    <ListBox.ContextMenu>
+                <DataGrid x:Name="PeersGrid"
+                          AutoGenerateColumns="False" IsReadOnly="True"
+                          HeadersVisibility="Column" GridLinesVisibility="None"
+                          HorizontalScrollBarVisibility="Auto"
+                          ClipboardCopyMode="ExcludeHeader"
+                          CanUserReorderColumns="True" FontSize="11"
+                          PreviewMouseLeftButtonDown="Grid_PreviewMouseLeftButtonDown"
+                          PreviewMouseRightButtonDown="PeersGrid_PreviewMouseRightButtonDown"
+                          Background="#26262E" Foreground="#E8E8EC" BorderThickness="0"
+                          RowBackground="#26262E" AlternatingRowBackground="#2C2C36">
+                    <DataGrid.ContextMenu>
                         <ContextMenu>
                             <MenuItem Header="Copy device info" Click="CopyPeer_Click"/>
                             <MenuItem Header="Copy list" Click="CopyPeerList_Click"/>
                         </ContextMenu>
-                    </ListBox.ContextMenu>
-                    <ListBox.ItemTemplate>
-                        <DataTemplate>
-                            <StackPanel Margin="2,3">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
-                                    <TextBlock Text="  (paired)" Foreground="#7FB77F">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsPaired}" Value="True">
-                                                        <Setter Property="Visibility" Value="Visible"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
-                                </StackPanel>
-                                <TextBlock Text="{Binding Detail}" Foreground="#8A8A94"
-                                           FontSize="11" TextWrapping="Wrap"/>
-                            </StackPanel>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
+                    </DataGrid.ContextMenu>
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="110"/>
+                        <DataGridTextColumn Header="RSSI" Binding="{Binding SignalText}"
+                                            SortMemberPath="SignalDbm" Width="60"/>
+                        <DataGridTextColumn Header="Type" Binding="{Binding DeviceType}" Width="85"/>
+                        <DataGridTextColumn Header="Paired" Binding="{Binding PairedText}" Width="50"/>
+                        <DataGridTextColumn Header="Vendor" Binding="{Binding Vendor}" Width="110"/>
+                        <DataGridTextColumn Header="MAC" Binding="{Binding Address}" Width="115"/>
+                        <DataGridTextColumn Header="Last seen" Binding="{Binding LastSeenText}"
+                                            SortMemberPath="LastSeen" Width="70"/>
+                    </DataGrid.Columns>
+                    <DataGrid.RowStyle>
+                        <Style TargetType="DataGridRow">
+                            <Setter Property="Background" Value="#26262E"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsStale}" Value="True">
+                                    <Setter Property="Opacity" Value="0.4"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </DataGrid.RowStyle>
+                </DataGrid>
             </DockPanel>
 
             <DockPanel Grid.Row="2">

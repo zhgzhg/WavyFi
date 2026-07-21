@@ -44,8 +44,32 @@ internal static class WlanInterop
     public const int OpcodeCurrentConnection = 7; // wlan_intf_opcode_current_connection
     public const uint InterfaceStateConnected = 1;
 
+    public delegate void WlanNotificationCallback(ref WlanNotificationData data, IntPtr context);
+
+    [DllImport("wlanapi.dll")]
+    public static extern uint WlanRegisterNotification(
+        IntPtr hClientHandle, uint dwNotifSource,
+        [MarshalAs(UnmanagedType.Bool)] bool bIgnoreDuplicate,
+        WlanNotificationCallback? funcCallback, IntPtr pCallbackContext,
+        IntPtr pReserved, out uint pdwPrevNotifSource);
+
+    public const uint NotificationSourceNone = 0x0;
+    public const uint NotificationSourceAcm = 0x8;   // auto config module
+    public const uint AcmScanComplete = 7;           // wlan_notification_acm_scan_complete
+    public const uint AcmScanFail = 8;               // wlan_notification_acm_scan_fail
+
     [DllImport("wlanapi.dll")]
     public static extern void WlanFreeMemory(IntPtr pMemory);
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct WlanNotificationData
+{
+    public uint NotificationSource;
+    public uint NotificationCode;
+    public Guid InterfaceGuid;
+    public uint DataSize;
+    public IntPtr Data;
 }
 
 public enum Dot11BssType

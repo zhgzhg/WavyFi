@@ -29,7 +29,11 @@ get a recommendation for the optimal settings of your own network.
   Selected table rows are emphasized. Channel 14 is placed at its true
   2484 MHz position.
 - **WiFi Direct devices** — live discovery of advertising P2P peers
-  (phones, TVs, Miracast receivers, printers) via `Windows.Devices.WiFiDirect`.
+  (phones, TVs, Miracast receivers, printers) via `Windows.Devices.WiFiDirect`,
+  shown in a compact sortable grid: name, RSSI (when reported), device type,
+  pairing state, vendor, MAC, last seen. The search box and minimum-signal
+  slider filter this grid too. Peers advertise in bursts, so they are kept
+  for the whole session: stale ones fade and their age keeps counting.
 - **Recommendations** — congestion-scored best channel for 2.4 GHz
   (among 1/6/11) and 5 GHz (non-DFS, with a DFS hint when quieter),
   overlap analysis for your own network, and security upgrade advice.
@@ -65,8 +69,12 @@ WiFi scan results behind it.
   signal narrow the table and graphs (recommendations always use all data).
 - **Persistence** — networks that drop out of a scan fade (stale) and are
   removed after 2 minutes unseen; "Last seen" shows the age. WiFi Direct
-  peers expire the same way.
-- **WiFi Direct list** — right-click for copy options.
+  peers fade too but are kept for the whole session (their advertising is
+  bursty, so absence rarely means the device left).
+- **WiFi Direct grid** — sortable like the network table (RSSI sorts
+  numerically); right-click a row for copy options; header right-click
+  opens its own column chooser. Peers with no signal reading are hidden
+  only while the minimum-signal slider is raised.
 
 ## Known limitations
 
@@ -74,9 +82,9 @@ WiFi scan results behind it.
   discovery uses whatever radio Windows chooses for it.
 - No monitor-mode capture — everything comes from standard scans, which
   is all the advice engine needs.
-- The scan loop reads the OS BSS cache right after requesting a sweep, so
-  fresh data trails a request by one cycle and the first full picture
-  takes ~2 cycles after startup.
+- Scan sweeps take the radio 2-5 s (DFS/6 GHz channels are listened to
+  passively). The app refreshes as soon as the driver signals scan
+  completion (`WlanRegisterNotification`), in addition to the 5 s timer.
 - WiFi 7 (802.11be) widths are parsed from the EHT Operation element;
   320 MHz shows correctly only when the AP advertises it there.
 - "Your own network" grouping (excluding your router's other radios from

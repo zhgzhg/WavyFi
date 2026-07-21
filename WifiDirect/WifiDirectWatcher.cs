@@ -5,21 +5,8 @@ namespace WifiOptimizer.WifiDirect;
 
 public record WifiDirectPeer(
     string Id, string Name, bool IsPaired,
-    string Address, int? SignalDbm, string DeviceType, string Vendor)
-{
-    public string Detail
-    {
-        get
-        {
-            var parts = new List<string>();
-            if (DeviceType.Length > 0) parts.Add(DeviceType);
-            if (Vendor.Length > 0) parts.Add(Vendor);
-            if (Address.Length > 0) parts.Add(Address);
-            if (SignalDbm is int s) parts.Add($"{s} dBm");
-            return string.Join("  ·  ", parts);
-        }
-    }
-}
+    string Address, int? SignalDbm, string DeviceType, string Vendor,
+    DateTime LastSeen);
 
 /// <summary>
 /// Continuously discovers nearby WiFi Direct devices (phones, TVs, printers,
@@ -34,10 +21,6 @@ public sealed class WifiDirectWatcher : IDisposable
         "System.Devices.Aep.SignalStrength",
         "System.Devices.WiFiDirect.InformationElements",
     };
-
-    /// <summary>Removed events are unreliable for AEP watchers, so peers that
-    /// stop being re-discovered across restart cycles are pruned by age.</summary>
-    private static readonly TimeSpan ExpireAfter = TimeSpan.FromMinutes(2);
 
     private readonly DeviceWatcher _watcher;
     private readonly Dictionary<string, (DeviceInformation Info, DateTime LastSeen)> _devices = new();
@@ -54,7 +37,8 @@ public sealed class WifiDirectWatcher : IDisposable
         _watcher = DeviceInformation.CreateWatcher(selector, RequestedProperties);
         _watcher.Added += OnAdded;
         _watcher.Updated += OnUpdated;
-        _watcher.Removed += OnRemoved;
+        // Removed is deliberately not handled: peers persist for the session
+        // (persistence of vision) — the UI shows their age and fades them.
         _watcher.EnumerationCompleted += OnEnumerationCompleted;
         _watcher.Stopped += OnStopped;
     }
@@ -64,10 +48,10 @@ public sealed class WifiDirectWatcher : IDisposable
     public IReadOnlyList<WifiDirectPeer> GetPeers()
     {
         lock (_lock)
-            return _devices.Values.Select(v => ToPeer(v.Info)).OrderBy(p => p.Name).ToList();
+            return _devices.Values.Select(v => ToPeer(v.Info, v.LastSeen)).OrderBy(p => p.Name).ToList();
     }
 
-    private static WifiDirectPeer ToPeer(DeviceInformation info)
+    private static WifiDirectPeer ToPeer(DeviceInformation info, DateTime lastSeen)
     {
         info.Properties.TryGetValue("System.Devices.Aep.DeviceAddress", out var addressObj);
         info.Properties.TryGetValue("System.Devices.Aep.SignalStrength", out var signalObj);
@@ -89,7 +73,8 @@ public sealed class WifiDirectWatcher : IDisposable
             info.Id, name,
             info.Pairing?.IsPaired ?? false,
             address, signal, deviceType,
-            Data.OuiDatabase.Lookup(address));
+            Data.OuiDatabase.Lookup(address),
+            lastSeen);
     }
 
     /// <summary>The advertised information elements contain a WPS IE whose
@@ -170,30 +155,8 @@ public sealed class WifiDirectWatcher : IDisposable
         PeersChanged?.Invoke();
     }
 
-    private void OnRemoved(DeviceWatcher sender, DeviceInformationUpdate update)
-    {
-        lock (_lock)
-            _devices.Remove(update.Id);
-        PeersChanged?.Invoke();
-    }
-
     private async void OnEnumerationCompleted(DeviceWatcher sender, object args)
     {
-        // Prune peers that stopped being re-discovered — each restart cycle
-        // re-fires Added for devices still present, refreshing their age.
-        bool pruned = false;
-        lock (_lock)
-        {
-            var cutoff = DateTime.Now - ExpireAfter;
-            foreach (var id in _devices.Where(kv => kv.Value.LastSeen < cutoff).Select(kv => kv.Key).ToList())
-            {
-                _devices.Remove(id);
-                pruned = true;
-            }
-        }
-        if (pruned)
-            PeersChanged?.Invoke();
-
         // The watcher goes idle after the initial sweep; restart it so
         // discovery stays live while the app is open.
         await Task.Delay(TimeSpan.FromSeconds(10));
@@ -220,7 +183,6 @@ public sealed class WifiDirectWatcher : IDisposable
         _disposed = true;
         _watcher.Added -= OnAdded;
         _watcher.Updated -= OnUpdated;
-        _watcher.Removed -= OnRemoved;
         _watcher.EnumerationCompleted -= OnEnumerationCompleted;
         _watcher.Stopped -= OnStopped;
         if (_watcher.Status is DeviceWatcherStatus.Started or DeviceWatcherStatus.EnumerationCompleted)
