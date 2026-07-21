@@ -60,9 +60,12 @@ WiFi scan results behind it.
 - **Scanning toggle** — starts/stops the 5-second scan loop. Turning it
   on clears previously accumulated data (fresh session). While it's on,
   the adapter dropdown is locked; pause to switch adapters.
-- **Adapter dropdown** — lists all WLAN adapters; re-enumerated each time
-  it opens, so USB adapters plugged in later appear. If the active
-  adapter disappears, scanning falls back to the next available one.
+- **Adapters dropdown** — multi-select with checkboxes; defaults to the
+  first adapter found. With several selected, every network appears once
+  per adapter that hears it (compare reception between radios); the
+  hidden "Adapter" column shows [index] + name, and graph labels carry
+  the [index] suffix. Re-enumerated each time it opens, so USB adapters
+  plugged in later appear; vanished adapters are dropped automatically.
 - **Table** — click a row to select (plain click on a selected row
   unselects; empty space clears the selection). Selected networks are
   plotted in the signal-over-time graph and emphasized in the channel
@@ -82,8 +85,8 @@ WiFi scan results behind it.
 
 ## Known limitations
 
-- One adapter is scanned at a time (the dropdown selection); WiFi Direct
-  discovery uses whatever radio Windows chooses for it.
+- WiFi Direct discovery uses whatever radio Windows chooses for it, so
+  peers cannot be attributed to a specific adapter.
 - No monitor-mode capture — everything comes from standard scans, which
   is all the advice engine needs.
 - Scan sweeps take the radio 2-5 s (DFS/6 GHz channels are listened to

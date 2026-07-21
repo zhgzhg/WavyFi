@@ -55,6 +55,33 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <Style x:Key="DropdownToggle" TargetType="ToggleButton">
+            <Setter Property="Foreground" Value="#E8E8EC"/>
+            <Setter Property="Background" Value="#26262E"/>
+            <Setter Property="BorderBrush" Value="#3A5A8C"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="1" CornerRadius="2">
+                            <DockPanel>
+                                <Path DockPanel.Dock="Right" VerticalAlignment="Center"
+                                      Margin="8,0" Data="M 0 0 L 4 4 L 8 0 Z" Fill="#8A8A94"/>
+                                <ContentPresenter Margin="8,3,0,3" VerticalAlignment="Center"/>
+                            </DockPanel>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.45"/>
+                                <Setter Property="BorderBrush" Value="#3A3A46"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <Style x:Key="ScanSwitchStyle" TargetType="ToggleButton">
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
@@ -249,13 +276,34 @@
                           IsChecked="True" VerticalAlignment="Center"
                           Checked="ScanToggle_Changed" Unchecked="ScanToggle_Changed"
                           DockPanel.Dock="Left"/>
-            <TextBlock Text="Adapter:" VerticalAlignment="Center" Margin="14,0,6,0"
+            <TextBlock Text="Adapters:" VerticalAlignment="Center" Margin="14,0,6,0"
                        Foreground="#8A8A94" DockPanel.Dock="Left"/>
-            <ComboBox x:Name="AdapterCombo" MinWidth="280" MaxWidth="420"
-                      VerticalAlignment="Center" DockPanel.Dock="Left"
-                      DisplayMemberPath="Description"
-                      DropDownOpened="AdapterCombo_DropDownOpened"
-                      SelectionChanged="AdapterCombo_SelectionChanged"/>
+            <ToggleButton x:Name="AdapterDropdown" Style="{StaticResource DropdownToggle}"
+                          MinWidth="280" MaxWidth="420" VerticalAlignment="Center"
+                          DockPanel.Dock="Left" Checked="AdapterDropdown_Opened">
+                <TextBlock x:Name="AdapterSummary" Text="(no adapter)"
+                           TextTrimming="CharacterEllipsis"/>
+            </ToggleButton>
+            <Popup DockPanel.Dock="Left" PlacementTarget="{Binding ElementName=AdapterDropdown}"
+                   Placement="Bottom" StaysOpen="False" AllowsTransparency="True"
+                   IsOpen="{Binding IsChecked, ElementName=AdapterDropdown, Mode=TwoWay}">
+                <Border Background="#26262E" BorderBrush="#3A3A46" BorderThickness="1"
+                        MinWidth="{Binding ActualWidth, ElementName=AdapterDropdown}">
+                    <ItemsControl x:Name="AdapterList">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                          Margin="8,5" Foreground="#E8E8EC"
+                                          Checked="AdapterCheck_Changed"
+                                          Unchecked="AdapterCheck_Changed">
+                                    <TextBlock Text="{Binding Display}" MaxWidth="380"
+                                               TextTrimming="CharacterEllipsis"/>
+                                </CheckBox>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Border>
+            </Popup>
             <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Margin="12,0,0,0">
                 <Hyperlink NavigateUri="https://github.com/zhgzhg/WavyFi"
                            RequestNavigate="RepoLink_RequestNavigate"
@@ -339,6 +387,9 @@
                 </DataGrid.ContextMenu>
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="(E)SSID" Binding="{Binding DisplayName}" Width="170"/>
+                    <DataGridTextColumn Header="BSSID" Binding="{Binding Bssid}" Width="135"/>
+                    <DataGridTextColumn Header="Adapter" Binding="{Binding AdapterText}" Width="200"
+                                        Visibility="Collapsed"/>
                     <DataGridTextColumn Header="Signal (%)" Binding="{Binding SignalPercent}" Width="70"
                                         Visibility="Collapsed"/>
                     <DataGridTextColumn Header="RSSI (dBm)" Binding="{Binding Rssi}" Width="80"/>
@@ -354,7 +405,6 @@
                     <DataGridTextColumn Header="Cipher" Binding="{Binding Cipher}" Width="85"/>
                     <DataGridTextColumn Header="WPS" Binding="{Binding WpsVersion}" Width="45"/>
                     <DataGridTextColumn Header="Legacy rates (Mbps)" Binding="{Binding RatesCsv}" Width="170"/>
-                    <DataGridTextColumn Header="BSSID" Binding="{Binding Bssid}" Width="135"/>
                     <DataGridTextColumn Header="Vendor" Binding="{Binding Vendor}" Width="150"/>
                     <DataGridTextColumn Header="Last seen (s)" Binding="{Binding LastSeenSeconds}" Width="90"/>
                 </DataGrid.Columns>

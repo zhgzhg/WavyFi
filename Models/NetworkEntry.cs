@@ -31,10 +31,22 @@ public class NetworkEntry : INotifyPropertyChanged
     public NetworkEntry(WifiNetwork n, DateTime now)
     {
         Bssid = n.Bssid;
+        AdapterGuid = n.AdapterGuid;
+        AdapterIndex = n.AdapterIndex;
+        AdapterName = n.AdapterName;
         UpdateFrom(n, now);
     }
 
     public string Bssid { get; }
+    public Guid AdapterGuid { get; }
+    public int AdapterIndex { get; }
+    public string AdapterName { get; }
+
+    /// <summary>Identity across scans: one entry per (adapter, BSSID).</summary>
+    public string Key => $"{Bssid}|{AdapterGuid}";
+
+    public string AdapterText => $"[{AdapterIndex}] {AdapterName}";
+
     public DateTime LastSeen { get; private set; }
 
     /// <summary>RSSI samples from each scan the network appeared in (last 10 min).</summary>

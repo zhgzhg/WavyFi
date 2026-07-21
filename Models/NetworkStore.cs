@@ -15,22 +15,24 @@ public class NetworkStore
 
     public void ApplyScan(IReadOnlyList<WifiNetwork> scan, DateTime now)
     {
-        // Built tolerantly (no ToDictionary) so a duplicate BSSID can never
-        // poison the store into throwing on every subsequent scan.
-        var byBssid = new Dictionary<string, NetworkEntry>();
+        // Keyed by (adapter, BSSID) — each selected adapter contributes its
+        // own row per network. Built tolerantly (no ToDictionary) so a
+        // duplicate key can never poison the store into throwing every scan.
+        var byKey = new Dictionary<string, NetworkEntry>();
         foreach (var e in Entries)
-            byBssid[e.Bssid] = e;
+            byKey[e.Key] = e;
 
         foreach (var n in scan)
         {
-            if (byBssid.TryGetValue(n.Bssid, out var existing))
+            var key = $"{n.Bssid}|{n.AdapterGuid}";
+            if (byKey.TryGetValue(key, out var existing))
             {
                 existing.UpdateFrom(n, now);
             }
             else
             {
                 var entry = new NetworkEntry(n, now);
-                byBssid[n.Bssid] = entry;
+                byKey[key] = entry;
                 Entries.Add(entry);
             }
         }

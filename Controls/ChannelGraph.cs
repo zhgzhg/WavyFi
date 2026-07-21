@@ -29,8 +29,17 @@ public class ChannelGraph : FrameworkElement
     }
 
     private IReadOnlyList<NetworkEntry> _entries = Array.Empty<NetworkEntry>();
-    private HashSet<string> _selectedBssids = new();
+    private HashSet<string> _selectedKeys = new();
     private string _band = "2.4 GHz";
+
+    private bool _showAdapterIndex;
+    /// <summary>Suffix labels with "[adapter index]" — only meaningful when
+    /// several adapters are scanning at once.</summary>
+    public bool ShowAdapterIndex
+    {
+        get => _showAdapterIndex;
+        set { _showAdapterIndex = value; InvalidateVisual(); }
+    }
     private double _minCh = -1, _maxCh = 16;
     private int[] _labels = Enumerable.Range(1, 14).ToArray();
 
@@ -76,9 +85,9 @@ public class ChannelGraph : FrameworkElement
         InvalidateVisual();
     }
 
-    public void SetSelection(IEnumerable<string> bssids)
+    public void SetSelection(IEnumerable<string> keys)
     {
-        _selectedBssids = new HashSet<string>(bssids);
+        _selectedKeys = new HashSet<string>(keys);
         InvalidateVisual();
     }
 
@@ -119,14 +128,14 @@ public class ChannelGraph : FrameworkElement
             return;
         }
 
-        bool hasSelection = _selectedBssids.Count > 0;
+        bool hasSelection = _selectedKeys.Count > 0;
 
         // Selected networks draw last so they sit on top of everything else.
-        foreach (var e in _entries.OrderBy(x => _selectedBssids.Contains(x.Bssid)))
+        foreach (var e in _entries.OrderBy(x => _selectedKeys.Contains(x.Key)))
         {
             if (e.Channel <= 0 || e.CenterChannel <= 0) continue;
 
-            bool isSelected = _selectedBssids.Contains(e.Bssid);
+            bool isSelected = _selectedKeys.Contains(e.Key);
             var color = GraphPalette.ColorFor(e.Bssid);
             byte fillAlpha = e.IsStale ? (byte)0x14
                 : isSelected ? (byte)0x80
@@ -163,7 +172,8 @@ public class ChannelGraph : FrameworkElement
             geo.Freeze();
             dc.DrawGeometry(fill, stroke, geo);
 
-            var label = Text(e.DisplayName, (isSelected ? 12 : 10.5) * fs, lineBrush, ppd);
+            var name = _showAdapterIndex ? $"{e.DisplayName} [{e.AdapterIndex}]" : e.DisplayName;
+            var label = Text(name, (isSelected ? 12 : 10.5) * fs, lineBrush, ppd);
             double lx = Math.Clamp(xC - label.Width / 2, left, Math.Max(left, w - right - label.Width));
             dc.DrawText(label, new Point(lx, Math.Max(2, yTop - label.Height - 1)));
         }

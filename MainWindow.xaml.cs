@@ -30,7 +30,14 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         WindowPlacement.Restore(this);
-        Closing += (_, _) => WindowPlacement.Save(this);
+        WindowPlacement.RestoreColumnLayout("net", NetworksGrid);
+        WindowPlacement.RestoreColumnLayout("p2p", PeersGrid);
+        Closing += (_, _) =>
+        {
+            WindowPlacement.Save(this);
+            WindowPlacement.SaveColumnLayout("net", NetworksGrid);
+            WindowPlacement.SaveColumnLayout("p2p", PeersGrid);
+        };
 
         _view = (ListCollectionView)CollectionViewSource.GetDefaultView(_store.Entries);
         _view.Filter = FilterPredicate;
@@ -64,8 +71,9 @@ public partial class MainWindow : Window
             if (ScanToggle.IsChecked == true)
                 await RefreshAsync(triggerScan: false);
         });
+        AdapterList.ItemsSource = _adapterChoices;
         ReloadAdapterList();
-        AdapterCombo.IsEnabled = ScanToggle.IsChecked != true;
+        AdapterDropdown.IsEnabled = ScanToggle.IsChecked != true;
         _wifiDirect = new WifiDirectWatcher();
         _wifiDirect.PeersChanged += () => Dispatcher.BeginInvoke(UpdatePeersList);
 
@@ -125,8 +133,10 @@ public partial class MainWindow : Window
             StatsText.Text = $"{networks.Count} in range  ·  {_store.Entries.Count} tracked  ·  " +
                              $"updated {DateTime.Now:HH:mm:ss}";
 
-            // The scanner may have fallen back to another adapter (unplug).
-            if ((AdapterCombo.SelectedItem as WlanAdapter)?.Guid != _scanner.CurrentAdapterGuid)
+            // The scanner may have dropped a vanished adapter (unplug).
+            var live = _scanner.SelectedAdapters.Select(a => a.Guid).ToHashSet();
+            var shown = _adapterChoices.Where(c => c.IsSelected).Select(c => c.Adapter.Guid).ToHashSet();
+            if (!live.SetEquals(shown))
                 ReloadAdapterList();
         }
         catch (Exception ex)
@@ -154,10 +164,10 @@ public partial class MainWindow : Window
         var selected = NetworksGrid.SelectedItems.Cast<NetworkEntry>().ToList();
         SignalGraphView.SetEntries(selected);
 
-        var bssids = selected.Select(n => n.Bssid).ToList();
-        Graph24.SetSelection(bssids);
-        Graph5.SetSelection(bssids);
-        Graph6.SetSelection(bssids);
+        var keys = selected.Select(n => n.Key).ToList();
+        Graph24.SetSelection(keys);
+        Graph5.SetSelection(keys);
+        Graph6.SetSelection(keys);
     }
 
     private void NetworksGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -392,6 +402,7 @@ public partial class MainWindow : Window
         ["Legacy rates (Mbps)"] = "802.11a/b/g compatibility rates from the beacon's Supported Rates elements — modern rates are expressed as MCS instead; see Max rate.",
         ["BSSID"] = "MAC address of this access point radio (one SSID can have several).",
         ["Vendor"] = "Manufacturer resolved from the MAC prefix (embedded IEEE OUI registry).",
+        ["Adapter"] = "The WLAN adapter that heard this reading, as [index] and name — one row per adapter when scanning with several.",
         ["Last seen (s)"] = "Seconds since last seen; faded rows are stale.",
         ["Name"] = "Device name advertised over WiFi Direct.",
         ["Paired"] = "Whether this device is paired with Windows.",
@@ -512,6 +523,30 @@ public partial class MainWindow : Window
         return true;
     }
 
+    private sealed class AdapterChoice : INotifyPropertyChanged
+    {
+        private bool _isSelected;
+
+        public AdapterChoice(WlanAdapter adapter) => Adapter = adapter;
+
+        public WlanAdapter Adapter { get; }
+        public string Display => $"[{Adapter.Index}] {Adapter.Description}";
+
+        public bool IsSelected
+        {
+            get => _isSelected;
+            set
+            {
+                if (_isSelected == value) return;
+                _isSelected = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsSelected)));
+            }
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+    }
+
+    private readonly System.Collections.ObjectModel.ObservableCollection<AdapterChoice> _adapterChoices = new();
     private bool _reloadingAdapters;
 
     private void ReloadAdapterList()
@@ -520,32 +555,70 @@ public partial class MainWindow : Window
         try
         {
             var adapters = _scanner.EnumerateAdapters();
-            AdapterCombo.ItemsSource = adapters;
-            AdapterCombo.SelectedItem =
-                adapters.FirstOrDefault(a => a.Guid == _scanner.CurrentAdapterGuid);
+            var selectedGuids = _scanner.SelectedAdapters.Select(a => a.Guid).ToHashSet();
+            if (adapters.Count > 0 && !adapters.Any(a => selectedGuids.Contains(a.Guid)))
+                selectedGuids = new HashSet<Guid> { adapters[0].Guid }; // default: first found
+
+            _adapterChoices.Clear();
+            foreach (var adapter in adapters)
+                _adapterChoices.Add(new AdapterChoice(adapter)
+                {
+                    IsSelected = selectedGuids.Contains(adapter.Guid),
+                });
         }
         finally
         {
             _reloadingAdapters = false;
         }
+        ApplyAdapterSelection();
     }
 
-    private void AdapterCombo_DropDownOpened(object sender, EventArgs e)
+    /// <summary>Pushes the checked adapters into the scanner and updates the
+    /// summary text and the graphs' [index] labeling mode.</summary>
+    private void ApplyAdapterSelection()
+    {
+        var chosen = _adapterChoices.Where(c => c.IsSelected).Select(c => c.Adapter).ToList();
+        _scanner.SelectAdapters(chosen);
+
+        bool multi = chosen.Count > 1;
+        Graph24.ShowAdapterIndex = multi;
+        Graph5.ShowAdapterIndex = multi;
+        Graph6.ShowAdapterIndex = multi;
+        SignalGraphView.ShowAdapterIndex = multi;
+
+        AdapterSummary.Text = chosen.Count switch
+        {
+            0 => "(no adapter)",
+            1 => $"[{chosen[0].Index}] {chosen[0].Description}",
+            _ => $"{chosen.Count} adapters: {string.Join(" ", chosen.Select(a => $"[{a.Index}]"))}",
+        };
+    }
+
+    private void AdapterDropdown_Opened(object sender, RoutedEventArgs e)
     {
         ReloadAdapterList(); // pick up USB adapters plugged in since startup
     }
 
-    private void AdapterCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void AdapterCheck_Changed(object sender, RoutedEventArgs e)
     {
-        // Only reachable while scanning is off — the combo is disabled otherwise.
-        if (_reloadingAdapters ||
-            AdapterCombo.SelectedItem is not WlanAdapter adapter ||
-            adapter.Guid == _scanner.CurrentAdapterGuid)
-            return;
+        // Only reachable while scanning is off — the dropdown is locked otherwise.
+        if (_reloadingAdapters) return;
 
-        _scanner.SelectAdapter(adapter);
+        if (!_adapterChoices.Any(c => c.IsSelected))
+        {
+            if (sender is CheckBox { DataContext: AdapterChoice unchecked_ })
+            {
+                _reloadingAdapters = true;
+                unchecked_.IsSelected = true;
+                _reloadingAdapters = false;
+            }
+            StatusText.Text = "At least one adapter must remain selected.";
+            return;
+        }
+
+        ApplyAdapterSelection();
         ClearAccumulatedData();
-        StatusText.Text = $"Switched to {adapter.Description} — turn scanning on to start.";
+        StatusText.Text = "Adapter selection changed — turn scanning on to start.";
     }
 
     private async void ScanToggle_Changed(object sender, RoutedEventArgs e)
@@ -554,7 +627,7 @@ public partial class MainWindow : Window
 
         if (ScanToggle.IsChecked == true)
         {
-            AdapterCombo.IsEnabled = false;
+            AdapterDropdown.IsEnabled = false;
             ClearAccumulatedData();
             await RefreshAsync();
             _timer.Start();
@@ -562,7 +635,7 @@ public partial class MainWindow : Window
         else
         {
             _timer.Stop();
-            AdapterCombo.IsEnabled = true;
+            AdapterDropdown.IsEnabled = true;
             StatusText.Text = "Scanning paused — table and graphs frozen; adapter can be switched.";
         }
     }

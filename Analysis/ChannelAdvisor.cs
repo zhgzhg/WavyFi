@@ -21,6 +21,13 @@ public static class ChannelAdvisor
         if (networks.Count == 0)
             return "No scan data yet.";
 
+        // With several adapters selected the same AP appears once per adapter;
+        // congestion must count each physical AP once (strongest reading wins).
+        networks = networks
+            .GroupBy(n => n.Bssid)
+            .Select(g => g.OrderByDescending(n => n.IsConnected).ThenByDescending(n => n.Rssi).First())
+            .ToList();
+
         var sb = new StringBuilder();
         var own = networks.FirstOrDefault(n => n.IsConnected);
 

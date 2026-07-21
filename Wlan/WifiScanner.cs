@@ -3,7 +3,7 @@ using WavyFi.Models;
 
 namespace WavyFi.Wlan;
 
-public record WlanAdapter(Guid Guid, string Description);
+public record WlanAdapter(Guid Guid, string Description, int Index);
 
 public sealed class WifiScanner : IDisposable
 {
@@ -11,14 +11,20 @@ public sealed class WifiScanner : IDisposable
     // Held in a field so the GC never collects the marshaled callback thunk
     // while the native side can still invoke it.
     private readonly WlanInterop.WlanNotificationCallback _notificationCallback;
-    private Guid _interfaceGuid;
-    private bool _hasInterface;
+    // Swapped atomically as a whole list — read from the notification thread.
+    private List<WlanAdapter> _selected = new();
 
-    public string InterfaceDescription { get; private set; } = "(no WiFi adapter)";
-    public Guid CurrentAdapterGuid => _hasInterface ? _interfaceGuid : Guid.Empty;
+    public IReadOnlyList<WlanAdapter> SelectedAdapters => _selected;
 
-    /// <summary>Raised (on a native worker thread) when the selected adapter
-    /// finishes a scan sweep — the BSS cache is fresh at that moment.</summary>
+    public string InterfaceDescription => _selected.Count switch
+    {
+        0 => "(no WiFi adapter)",
+        1 => _selected[0].Description,
+        _ => $"{_selected.Count} adapters",
+    };
+
+    /// <summary>Raised (on a native worker thread) when any selected adapter
+    /// finishes a scan sweep — its BSS cache is fresh at that moment.</summary>
     public event Action? ScanCompleted;
 
     public WifiScanner()
@@ -40,10 +46,11 @@ public sealed class WifiScanner : IDisposable
     {
         // Scan-fail still means the sweep ended — read whatever landed.
         if (data.NotificationSource == WlanInterop.NotificationSourceAcm &&
-            data.NotificationCode is WlanInterop.AcmScanComplete or WlanInterop.AcmScanFail &&
-            data.InterfaceGuid == _interfaceGuid)
+            data.NotificationCode is WlanInterop.AcmScanComplete or WlanInterop.AcmScanFail)
         {
-            ScanCompleted?.Invoke();
+            var guid = data.InterfaceGuid;
+            if (_selected.Any(a => a.Guid == guid))
+                ScanCompleted?.Invoke();
         }
     }
 
@@ -61,7 +68,7 @@ public sealed class WifiScanner : IDisposable
             for (int i = 0; i < count; i++)
             {
                 var info = Marshal.PtrToStructure<WlanInterfaceInfo>(listPtr + 8 + i * entrySize);
-                adapters.Add(new WlanAdapter(info.InterfaceGuid, info.InterfaceDescription));
+                adapters.Add(new WlanAdapter(info.InterfaceGuid, info.InterfaceDescription, i));
             }
         }
         finally
@@ -71,38 +78,40 @@ public sealed class WifiScanner : IDisposable
         return adapters;
     }
 
-    public void SelectAdapter(WlanAdapter adapter)
+    public void SelectAdapters(IEnumerable<WlanAdapter> adapters)
     {
-        _interfaceGuid = adapter.Guid;
-        InterfaceDescription = adapter.Description;
-        _hasInterface = true;
+        _selected = adapters.ToList();
     }
 
     private void SelectFirstAdapter()
     {
         if (EnumerateAdapters().FirstOrDefault() is { } first)
-            SelectAdapter(first);
+            _selected = new List<WlanAdapter> { first };
     }
 
-    /// <summary>Asks the adapter to start a fresh scan. Results land in the
-    /// cache a few seconds later and are picked up by the next GetNetworks call.</summary>
+    /// <summary>Asks every selected adapter to start a fresh scan. Results land
+    /// in each adapter's cache a few seconds later, picked up by GetNetworks.</summary>
     public void TriggerScan()
     {
-        if (!_hasInterface)
+        if (_selected.Count == 0)
         {
             SelectFirstAdapter();
-            if (!_hasInterface) return;
+            if (_selected.Count == 0) return;
         }
-        WlanInterop.WlanScan(_handle, ref _interfaceGuid, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+        foreach (var adapter in _selected)
+        {
+            var guid = adapter.Guid;
+            WlanInterop.WlanScan(_handle, ref guid, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+        }
     }
 
-    /// <summary>The BSSID (and real SSID) of the current association, straight
-    /// from the driver. Matching "connected" by BSSID is exact — SSID-name
-    /// matching fails when the connected AP beacons a hidden SSID.</summary>
-    private (string Bssid, string Ssid) GetCurrentConnection()
+    /// <summary>The BSSID (and real SSID) of the adapter's current association,
+    /// straight from the driver. Matching "connected" by BSSID is exact — SSID
+    /// name matching fails when the connected AP beacons a hidden SSID.</summary>
+    private (string Bssid, string Ssid) GetCurrentConnection(Guid interfaceGuid)
     {
         var result = WlanInterop.WlanQueryInterface(
-            _handle, ref _interfaceGuid, WlanInterop.OpcodeCurrentConnection,
+            _handle, ref interfaceGuid, WlanInterop.OpcodeCurrentConnection,
             IntPtr.Zero, out _, out var ptr, IntPtr.Zero);
         if (result != 0)
             return ("", "");
@@ -122,17 +131,53 @@ public sealed class WifiScanner : IDisposable
         }
     }
 
+    /// <summary>Union of the selected adapters' scan results, one row per
+    /// (adapter, BSSID). Adapters that vanished are dropped from the selection
+    /// silently as long as at least one other adapter still delivers.</summary>
     public IReadOnlyList<WifiNetwork> GetNetworks()
     {
-        if (!_hasInterface)
-            return Array.Empty<WifiNetwork>();
+        if (_selected.Count == 0)
+        {
+            SelectFirstAdapter();
+            if (_selected.Count == 0) return Array.Empty<WifiNetwork>();
+        }
 
-        var securityBySsid = ReadSecurityInfo();
-        var (connectedBssid, connectedSsid) = GetCurrentConnection();
+        var results = new List<WifiNetwork>();
+        List<WlanAdapter>? vanished = null;
+
+        foreach (var adapter in _selected)
+        {
+            var batch = GetNetworksFor(adapter);
+            if (batch is null)
+                (vanished ??= new List<WlanAdapter>()).Add(adapter);
+            else
+                results.AddRange(batch);
+        }
+
+        if (vanished is not null)
+        {
+            _selected = _selected.Except(vanished).ToList();
+            if (_selected.Count == 0)
+            {
+                SelectFirstAdapter();
+                throw new InvalidOperationException(
+                    "The selected WiFi adapter is no longer available — scanning will fall back to the next available adapter.");
+            }
+        }
+
+        return results;
+    }
+
+    /// <summary>One adapter's scan results, or null if the adapter vanished.</summary>
+    private IReadOnlyList<WifiNetwork>? GetNetworksFor(WlanAdapter adapter)
+    {
+        var interfaceGuid = adapter.Guid;
+        var securityBySsid = ReadSecurityInfo(interfaceGuid);
+        var (connectedBssid, connectedSsid) = GetCurrentConnection(interfaceGuid);
         var networks = new List<WifiNetwork>();
 
         var result = WlanInterop.WlanGetNetworkBssList(
-            _handle, ref _interfaceGuid, IntPtr.Zero,
+            _handle, ref interfaceGuid, IntPtr.Zero,
             Dot11BssType.Any, false, IntPtr.Zero, out var listPtr);
         if (result != 0)
         {
@@ -140,17 +185,11 @@ public sealed class WifiScanner : IDisposable
                 throw new InvalidOperationException(
                     "Access denied reading scan results. Check that Location access is enabled in Windows Settings > Privacy & security > Location.");
 
-            // The selected adapter may have been unplugged / disabled.
-            if (EnumerateAdapters().All(a => a.Guid != _interfaceGuid))
-            {
-                _hasInterface = false;
-                InterfaceDescription = "(no WiFi adapter)";
-                throw new InvalidOperationException(
-                    "The selected WiFi adapter is no longer available — scanning will fall back to the next available adapter.");
-            }
+            if (EnumerateAdapters().All(a => a.Guid != adapter.Guid))
+                return null; // unplugged / disabled
 
             throw new InvalidOperationException(
-                $"Could not read scan results: {new System.ComponentModel.Win32Exception((int)result).Message}");
+                $"Could not read scan results ({adapter.Description}): {new System.ComponentModel.Win32Exception((int)result).Message}");
         }
 
         try
@@ -182,6 +221,9 @@ public sealed class WifiScanner : IDisposable
                 {
                     Ssid = ssid,
                     Bssid = bssid,
+                    AdapterGuid = adapter.Guid,
+                    AdapterIndex = adapter.Index,
+                    AdapterName = adapter.Description,
                     Vendor = Data.OuiDatabase.Lookup(bssid),
                     Rssi = entry.Rssi,
                     SignalPercent = RssiToPercent(entry.Rssi),
@@ -210,8 +252,6 @@ public sealed class WifiScanner : IDisposable
         return networks
             .GroupBy(n => n.Bssid)
             .Select(g => g.OrderByDescending(n => n.IsConnected).ThenByDescending(n => n.Rssi).First())
-            .OrderByDescending(n => n.IsConnected)
-            .ThenByDescending(n => n.Rssi)
             .ToList();
     }
 
@@ -527,12 +567,12 @@ public sealed class WifiScanner : IDisposable
         return max;
     }
 
-    private Dictionary<string, (string Auth, string Cipher)> ReadSecurityInfo()
+    private Dictionary<string, (string Auth, string Cipher)> ReadSecurityInfo(Guid interfaceGuid)
     {
         var security = new Dictionary<string, (string, string)>();
 
         var result = WlanInterop.WlanGetAvailableNetworkList(
-            _handle, ref _interfaceGuid, 0, IntPtr.Zero, out var listPtr);
+            _handle, ref interfaceGuid, 0, IntPtr.Zero, out var listPtr);
         if (result != 0)
             return security;
 

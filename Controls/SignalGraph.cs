@@ -43,6 +43,15 @@ public class SignalGraph : FrameworkElement
         set { _fontScale = value; InvalidateVisual(); }
     }
 
+    private bool _showAdapterIndex;
+    /// <summary>Suffix labels with "[adapter index]" — only meaningful when
+    /// several adapters are scanning at once.</summary>
+    public bool ShowAdapterIndex
+    {
+        get => _showAdapterIndex;
+        set { _showAdapterIndex = value; InvalidateVisual(); }
+    }
+
     public void SetEntries(IEnumerable<NetworkEntry> entries)
     {
         _entries = entries.ToList();
@@ -124,7 +133,8 @@ public class SignalGraph : FrameworkElement
             double lx = X(last.Time), ly = Y(last.Rssi);
             dc.DrawEllipse(brush, null, new Point(lx, ly), 2.5, 2.5);
 
-            var label = Text($"{e.DisplayName} ({last.Rssi})", 10 * fs, brush, ppd);
+            var name = _showAdapterIndex ? $"{e.DisplayName} [{e.AdapterIndex}]" : e.DisplayName;
+            var label = Text($"{name} ({last.Rssi})", 10 * fs, brush, ppd);
             dc.DrawText(label, new Point(
                 Math.Clamp(lx - label.Width, left, Math.Max(left, w - right - label.Width)),
                 Math.Clamp(ly - label.Height - 2, 0, Math.Max(0, h - bottom - label.Height))));

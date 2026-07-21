@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Windows;
+using System.Windows.Controls;
 using Microsoft.Win32;
 
 namespace WavyFi;
@@ -109,6 +110,68 @@ internal static class WindowPlacement
         catch
         {
             // Not worth surfacing.
+        }
+    }
+
+    /// <summary>Persists a grid's column order and visibility as one compact
+    /// value per grid — "header=displayIndex:visible;..." under Cols.&lt;alias&gt;.
+    /// Keyed by header text so layouts survive versions that add columns.</summary>
+    public static void SaveColumnLayout(string gridAlias, DataGrid grid)
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.CreateSubKey(KeyPath);
+            var spec = string.Join(";", grid.Columns.Select(c =>
+                $"{c.Header}={c.DisplayIndex}:{(c.Visibility == Visibility.Visible ? 1 : 0)}"));
+            key.SetValue($"Cols.{gridAlias}", spec);
+        }
+        catch
+        {
+            // Not worth surfacing.
+        }
+    }
+
+    public static void RestoreColumnLayout(string gridAlias, DataGrid grid)
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(KeyPath);
+            if (key?.GetValue($"Cols.{gridAlias}") is not string spec || spec.Length == 0)
+                return;
+
+            var stored = new Dictionary<string, (int Index, bool Visible)>();
+            foreach (var part in spec.Split(';'))
+            {
+                var eq = part.LastIndexOf('=');
+                if (eq <= 0) continue;
+                var fields = part[(eq + 1)..].Split(':');
+                if (fields.Length == 2 &&
+                    int.TryParse(fields[0], out var index) &&
+                    int.TryParse(fields[1], out var visible))
+                    stored[part[..eq]] = (index, visible == 1);
+            }
+            if (stored.Count == 0) return;
+
+            foreach (var column in grid.Columns)
+                if (column.Header is string header && stored.TryGetValue(header, out var s))
+                    column.Visibility = s.Visible ? Visibility.Visible : Visibility.Collapsed;
+
+            // Columns unknown to the stored layout (added in a newer app
+            // version) keep their declared position, after the known ones.
+            var ordered = grid.Columns
+                .Select((column, declared) => (
+                    Column: column,
+                    Target: column.Header is string header && stored.TryGetValue(header, out var s)
+                        ? s.Index
+                        : 1000 + declared))
+                .OrderBy(x => x.Target)
+                .ToList();
+            for (int i = 0; i < ordered.Count; i++)
+                ordered[i].Column.DisplayIndex = i;
+        }
+        catch
+        {
+            // Corrupt layout: keep the declared defaults.
         }
     }
 

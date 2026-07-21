@@ -4,6 +4,11 @@ public class WifiNetwork
 {
     public string Ssid { get; init; } = "";
     public string Bssid { get; init; } = "";
+    /// <summary>The WLAN adapter this reading came from — one row exists
+    /// per (adapter, BSSID) when scanning with several adapters.</summary>
+    public Guid AdapterGuid { get; init; }
+    public int AdapterIndex { get; init; }
+    public string AdapterName { get; init; } = "";
     /// <summary>AP manufacturer resolved from the BSSID's OUI.</summary>
     public string Vendor { get; init; } = "";
     public int Rssi { get; init; }
