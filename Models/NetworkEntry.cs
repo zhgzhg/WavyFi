@@ -23,9 +23,10 @@ public class NetworkEntry : INotifyPropertyChanged
     private string _cipher = "";
     private string _wpsVersion = "-";
     private string _ratesCsv = "";
+    private double _maxRateMbps;
     private bool _isConnected;
     private bool _isStale;
-    private string _lastSeenText = "now";
+    private int _lastSeenSeconds;
 
     public NetworkEntry(WifiNetwork n, DateTime now)
     {
@@ -53,15 +54,53 @@ public class NetworkEntry : INotifyPropertyChanged
     public int ChannelWidthMhz { get => _channelWidthMhz; private set => Set(ref _channelWidthMhz, value); }
     public int CenterChannel { get => _centerChannel; private set => Set(ref _centerChannel, value); }
     public int FrequencyMhz { get => _frequencyMhz; private set => Set(ref _frequencyMhz, value); }
-    public string Band { get => _band; private set => Set(ref _band, value); }
-    public string Standards { get => _standards; private set => Set(ref _standards, value); }
+    public string Band
+    {
+        get => _band;
+        private set
+        {
+            if (Set(ref _band, value))
+            {
+                OnPropertyChanged(nameof(BandText));
+                OnPropertyChanged(nameof(Generation)); // WiFi 6E depends on band
+            }
+        }
+    }
+
+    /// <summary>Band without the unit — the column header carries "GHz".</summary>
+    public string BandText => Band.Replace(" GHz", "");
+    public string Standards
+    {
+        get => _standards;
+        private set { if (Set(ref _standards, value)) OnPropertyChanged(nameof(Generation)); }
+    }
+
+    /// <summary>WiFi Alliance generation name for the newest supported
+    /// standard. WiFi 1-3 were never officially certified names but are the
+    /// common retro-names for b/a/g. ax on 6 GHz is marketed as WiFi 6E.</summary>
+    public string Generation
+    {
+        get
+        {
+            var s = Standards.Split('/');
+            return s.Contains("be") ? "WiFi 7"
+                : s.Contains("ax") ? (Band == "6 GHz" ? "WiFi 6E" : "WiFi 6")
+                : s.Contains("ac") ? "WiFi 5"
+                : s.Contains("n") ? "WiFi 4"
+                : s.Contains("g") ? "WiFi 3"
+                : s.Contains("a") ? "WiFi 2"
+                : s.Contains("b") ? "WiFi 1"
+                : "";
+        }
+    }
     public string Security { get => _security; private set => Set(ref _security, value); }
     public string Cipher { get => _cipher; private set => Set(ref _cipher, value); }
     public string WpsVersion { get => _wpsVersion; private set => Set(ref _wpsVersion, value); }
     public string RatesCsv { get => _ratesCsv; private set => Set(ref _ratesCsv, value); }
+    public double MaxRateMbps { get => _maxRateMbps; private set => Set(ref _maxRateMbps, value); }
     public bool IsConnected { get => _isConnected; private set => Set(ref _isConnected, value); }
     public bool IsStale { get => _isStale; private set => Set(ref _isStale, value); }
-    public string LastSeenText { get => _lastSeenText; private set => Set(ref _lastSeenText, value); }
+    public int LastSeenSeconds { get => _lastSeenSeconds; private set => Set(ref _lastSeenSeconds, value); }
 
     public void UpdateFrom(WifiNetwork n, DateTime now)
     {
@@ -79,10 +118,11 @@ public class NetworkEntry : INotifyPropertyChanged
         Cipher = n.Cipher;
         WpsVersion = n.WpsVersion;
         RatesCsv = n.RatesCsv;
+        MaxRateMbps = n.MaxRateMbps;
         IsConnected = n.IsConnected;
         LastSeen = now;
         IsStale = false;
-        LastSeenText = "now";
+        LastSeenSeconds = 0;
 
         History.Add((now, n.Rssi));
         while (History.Count > 0 && now - History[0].Time > TimeSpan.FromMinutes(10))
@@ -93,7 +133,7 @@ public class NetworkEntry : INotifyPropertyChanged
     public void Tick(DateTime now, TimeSpan staleAfter)
     {
         var age = now - LastSeen;
-        LastSeenText = age.TotalSeconds < 8 ? "now" : $"{(int)age.TotalSeconds}s ago";
+        LastSeenSeconds = (int)age.TotalSeconds;
         IsStale = age >= staleAfter;
         if (IsStale) IsConnected = false;
     }

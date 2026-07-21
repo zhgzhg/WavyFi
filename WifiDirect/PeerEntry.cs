@@ -19,7 +19,7 @@ public class PeerEntry : INotifyPropertyChanged
     private string _vendor = "";
     private string _address = "";
     private bool _isStale;
-    private string _lastSeenText = "now";
+    private int _lastSeenSeconds;
 
     public PeerEntry(WifiDirectPeer peer, DateTime now)
     {
@@ -46,13 +46,14 @@ public class PeerEntry : INotifyPropertyChanged
         private set { if (Set(ref _signalDbm, value)) OnPropertyChanged(nameof(SignalText)); }
     }
 
-    public string SignalText => SignalDbm is int s ? $"{s} dBm" : "";
+    /// <summary>Bare number — the column header carries "dBm".</summary>
+    public string SignalText => SignalDbm?.ToString() ?? "";
 
     public string DeviceType { get => _deviceType; private set => Set(ref _deviceType, value); }
     public string Vendor { get => _vendor; private set => Set(ref _vendor, value); }
     public string Address { get => _address; private set => Set(ref _address, value); }
     public bool IsStale { get => _isStale; private set => Set(ref _isStale, value); }
-    public string LastSeenText { get => _lastSeenText; private set => Set(ref _lastSeenText, value); }
+    public int LastSeenSeconds { get => _lastSeenSeconds; private set => Set(ref _lastSeenSeconds, value); }
 
     public void UpdateFrom(WifiDirectPeer peer, DateTime now)
     {
@@ -69,10 +70,7 @@ public class PeerEntry : INotifyPropertyChanged
     public void Tick(DateTime now)
     {
         var age = now - LastSeen;
-        LastSeenText = age.TotalSeconds < 15 ? "now"
-            : age.TotalMinutes < 1 ? $"{(int)age.TotalSeconds}s ago"
-            : age.TotalHours < 1 ? $"{(int)age.TotalMinutes}m ago"
-            : $"{(int)age.TotalHours}h ago";
+        LastSeenSeconds = (int)age.TotalSeconds;
         IsStale = age >= StaleAfter;
     }
 

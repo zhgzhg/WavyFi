@@ -195,6 +195,7 @@ public sealed class WifiScanner : IDisposable
                     Cipher = cipher,
                     WpsVersion = ie.WpsVersion ?? "-",
                     RatesCsv = FormatRates(entry.RateSet),
+                    MaxRateMbps = ie.MaxRateMbps > 0 ? ie.MaxRateMbps : MaxLegacyRate(entry.RateSet),
                     IsConnected = isConnected,
                 });
             }
@@ -216,7 +217,7 @@ public sealed class WifiScanner : IDisposable
 
     private readonly record struct BssIeInfo(
         string? WpsVersion, int WidthMhz, int CenterChannel,
-        bool Ht, bool Vht, bool He, bool Eht);
+        bool Ht, bool Vht, bool He, bool Eht, double MaxRateMbps);
 
     /// <summary>Single pass over the beacon information elements, extracting:
     /// WPS version (vendor IE 221 / OUI 00-50-F2 type 4; Version2 in the WFA
@@ -231,6 +232,11 @@ public sealed class WifiScanner : IDisposable
         bool wideOpSeen = false; // VHT/HE info overrides HT
         bool ehtOpSeen = false;  // EHT (WiFi 7) info overrides everything
         bool ht = false, vht = false, he = false, eht = false;
+        bool htSgi20 = false, htSgi40 = false, vhtSgi80 = false, vhtSgi160 = false;
+        int htMaxMcsIndex = -1;              // 0..31 across 1-4 spatial streams
+        int vhtMaxNss = 0, vhtMaxMcs = 0;
+        int heMaxNss = 0, heMaxMcs = 0;
+        int ehtMaxNss = 0, ehtMaxMcs = 0;
         long end = ieOffset + ieSize, pos = ieOffset;
 
         byte B(long offset) => Marshal.ReadByte(entryPtr, (int)offset);
@@ -245,9 +251,28 @@ public sealed class WifiScanner : IDisposable
             {
                 case 45: // HT Capabilities -> 802.11n
                     ht = true;
+                    if (len >= 7)
+                    {
+                        htSgi20 |= (B(val) & 0x20) != 0;
+                        htSgi40 |= (B(val) & 0x40) != 0;
+                        // RX MCS bitmap starts at offset 3; MCS 0-31 = 1-4 streams.
+                        for (int bit = 31; bit >= 0; bit--)
+                            if ((B(val + 3 + bit / 8) & (1 << (bit % 8))) != 0)
+                            {
+                                htMaxMcsIndex = bit;
+                                break;
+                            }
+                    }
                     break;
                 case 191: // VHT Capabilities -> 802.11ac
                     vht = true;
+                    if (len >= 6)
+                    {
+                        vhtSgi80 |= (B(val) & 0x20) != 0;
+                        vhtSgi160 |= (B(val) & 0x40) != 0;
+                        int vhtMap = B(val + 4) | (B(val + 5) << 8);
+                        (vhtMaxNss, vhtMaxMcs) = MaxFromMcsMap(vhtMap, 7, 8, 9);
+                    }
                     break;
                 case 61 when len >= 2 && !wideOpSeen: // HT Operation
                 {
@@ -278,8 +303,32 @@ public sealed class WifiScanner : IDisposable
                 case 255 when len >= 1: // Element ID Extension
                 {
                     byte ext = B(val);
-                    if (ext == 35) he = true;        // HE Capabilities -> 802.11ax
-                    else if (ext == 108) eht = true; // EHT Capabilities -> 802.11be
+                    if (ext == 35) // HE Capabilities -> 802.11ax
+                    {
+                        he = true;
+                        // ext(1) + MAC caps(6) + PHY caps(11), then RX HE-MCS map (<=80 MHz).
+                        if (len >= 20)
+                        {
+                            int heMap = B(val + 18) | (B(val + 19) << 8);
+                            (heMaxNss, heMaxMcs) = MaxFromMcsMap(heMap, 7, 9, 11);
+                        }
+                    }
+                    else if (ext == 108) // EHT Capabilities -> 802.11be
+                    {
+                        eht = true;
+                        // ext(1) + EHT MAC caps(2) + EHT PHY caps(9), then the
+                        // EHT-MCS map (<=80 MHz): one byte per MCS group, low
+                        // nibble = max RX spatial streams (valid 1-8).
+                        if (len >= 15)
+                        {
+                            int nss09 = B(val + 12) & 0x0F;
+                            int nss1011 = B(val + 13) & 0x0F;
+                            int nss1213 = B(val + 14) & 0x0F;
+                            if (nss1213 is >= 1 and <= 8) (ehtMaxNss, ehtMaxMcs) = (nss1213, 13);
+                            else if (nss1011 is >= 1 and <= 8) (ehtMaxNss, ehtMaxMcs) = (nss1011, 11);
+                            else if (nss09 is >= 1 and <= 8) (ehtMaxNss, ehtMaxMcs) = (nss09, 9);
+                        }
+                    }
                     else if (ext == 106 && len >= 9 && (B(val + 1) & 0x01) != 0) // EHT Operation
                     {
                         // EHT Operation Information present: Control(1) CCFS0(1) CCFS1(1).
@@ -356,7 +405,63 @@ public sealed class WifiScanner : IDisposable
             }
             pos += 2 + len;
         }
-        return new BssIeInfo(wps, width, center, ht, vht, he, eht);
+
+        // Top PHY rate from the newest advertised generation at the operating
+        // width. EHT reuses HE numerology (same symbol time and tone counts),
+        // adding MCS 12/13 (4096-QAM).
+        bool shortGi = width switch
+        {
+            >= 160 => vhtSgi160,
+            >= 80 => vhtSgi80,
+            >= 40 => htSgi40,
+            _ => htSgi20,
+        };
+        double maxRate = 0;
+        if (ehtMaxNss > 0)
+            maxRate = PhyRate(ehtMaxMcs, ehtMaxNss, width, isHe: true, shortGi: false);
+        else if (heMaxNss > 0)
+            maxRate = PhyRate(heMaxMcs, heMaxNss, width, isHe: true, shortGi: false);
+        else if (vhtMaxNss > 0)
+            maxRate = PhyRate(vhtMaxMcs, vhtMaxNss, width, isHe: false, shortGi);
+        else if (htMaxMcsIndex >= 0)
+            maxRate = PhyRate(htMaxMcsIndex % 8, htMaxMcsIndex / 8 + 1,
+                Math.Min(width, 40), isHe: false, shortGi);
+
+        return new BssIeInfo(wps, width, center, ht, vht, he, eht, maxRate);
+    }
+
+    /// <summary>Highest spatial-stream count an MCS map supports, with its MCS
+    /// ceiling. Both VHT and HE maps pack 2 bits per stream (1..8); the value
+    /// selects an MCS ceiling, 3 = stream count not supported.</summary>
+    private static (int Nss, int Mcs) MaxFromMcsMap(int map, int mcs0, int mcs1, int mcs2)
+    {
+        int bestNss = 0, bestMcs = 0;
+        for (int nss = 1; nss <= 8; nss++)
+        {
+            int v = (map >> ((nss - 1) * 2)) & 3;
+            if (v == 3) continue;
+            bestNss = nss;
+            bestMcs = v switch { 0 => mcs0, 1 => mcs1, _ => mcs2 };
+        }
+        return (bestNss, bestMcs);
+    }
+
+    /// <summary>Data bits carried per subcarrier per symbol for MCS 0-13
+    /// (modulation order × coding rate), BPSK 1/2 through 4096-QAM 5/6.</summary>
+    private static readonly double[] McsDataBits =
+        { 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 4.5, 5.0, 6.0, 20.0 / 3.0, 7.5, 25.0 / 3.0, 9.0, 10.0 };
+
+    /// <summary>PHY rate in Mbps = bits/subcarrier × data subcarriers × streams
+    /// / symbol duration. HE uses 12.8 µs symbols (+0.8 µs GI) and ~4× the
+    /// subcarriers of HT/VHT (3.2 µs symbols + 0.8/0.4 µs GI).</summary>
+    private static double PhyRate(int mcs, int nss, int widthMhz, bool isHe, bool shortGi)
+    {
+        if (mcs < 0 || mcs >= McsDataBits.Length || nss <= 0) return 0;
+        int subcarriers = isHe
+            ? widthMhz switch { 40 => 468, 80 => 980, 160 => 1960, 320 => 3920, _ => 234 }
+            : widthMhz switch { 40 => 108, 80 => 234, 160 => 468, _ => 52 };
+        double symbolUs = isHe ? 13.6 : shortGi ? 3.6 : 4.0;
+        return McsDataBits[mcs] * subcarriers * nss / symbolUs;
     }
 
     /// <summary>Legacy standards come from the rate set: DSSS rates
@@ -411,6 +516,15 @@ public sealed class WifiScanner : IDisposable
         }
         return string.Join(", ", speeds.Select(s =>
             s.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)));
+    }
+
+    private static double MaxLegacyRate(WlanRateSet rateSet)
+    {
+        int count = Math.Min((int)rateSet.RateSetLength, rateSet.RateSet?.Length ?? 0);
+        double max = 0;
+        for (int i = 0; i < count; i++)
+            max = Math.Max(max, (rateSet.RateSet![i] & 0x7FFF) * 0.5);
+        return max;
     }
 
     private Dictionary<string, (string Auth, string Cipher)> ReadSecurityInfo()

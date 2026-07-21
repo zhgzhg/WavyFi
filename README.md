@@ -13,9 +13,13 @@ get a recommendation for the optimal settings of your own network.
   (stale) and are removed after 2 minutes. Auto-refreshes every 5 seconds
   via the Native WiFi API (`wlanapi.dll`).
 - **Security detail** — auth (WPA2/WPA3...), cipher (AES-CCMP, TKIP...),
-  WPS version parsed from the WPS information element ("-" when absent),
-  and supported rates as CSV. Right-click the table header to choose
-  visible columns.
+  WPS version parsed from the WPS information element ("-" when absent).
+  Right-click the table header to choose visible columns.
+- **Rates** — "Max rate" is the theoretical top PHY rate computed from the
+  HT/VHT/HE capability elements (MCS ceiling × spatial streams × operating
+  width × guard interval); "Legacy rates" lists the a/b/g compatibility
+  rates from the beacon's Supported Rates elements (these cap at 54 Mbps
+  by design — modern rates are advertised as MCS maps, not rate lists).
 - **Vendor identification** — each BSSID (and WiFi Direct peer) is resolved
   to its manufacturer via an embedded IEEE OUI snapshot (see below).
 - **Filtering** — search box (SSID/BSSID/vendor), band selector, and minimum
@@ -85,8 +89,14 @@ WiFi scan results behind it.
 - Scan sweeps take the radio 2-5 s (DFS/6 GHz channels are listened to
   passively). The app refreshes as soon as the driver signals scan
   completion (`WlanRegisterNotification`), in addition to the 5 s timer.
-- WiFi 7 (802.11be) widths are parsed from the EHT Operation element;
-  320 MHz shows correctly only when the AP advertises it there.
+- WiFi 7 (802.11be) is fully handled: widths (up to 320 MHz) from the EHT
+  Operation element, max rates (MCS 12/13, 4096-QAM) from the EHT
+  Capabilities MCS map.
+- WiFi 8 (802.11bn) is not detected yet: the draft's element IDs are
+  assigned in the IEEE ANA database, which is not publicly stable —
+  hardcoding a guess could misparse other elements. A `bn` AP will show
+  its WiFi 7 capabilities until the IDs are published (revisit once
+  Wireshark's dissector carries them).
 - "Your own network" grouping (excluding your router's other radios from
   congestion advice) uses a MAC heuristic — mesh nodes with unrelated
   MACs still count as neighbors.

@@ -20,6 +20,9 @@ public class WifiNetwork
     public string Cipher { get; init; } = "";
     public string WpsVersion { get; init; } = "-";
     public string RatesCsv { get; init; } = "";
+    /// <summary>Theoretical top PHY rate computed from the advertised MCS
+    /// map, spatial streams and operating width.</summary>
+    public double MaxRateMbps { get; init; }
     public bool IsConnected { get; init; }
 
     public string DisplayName => string.IsNullOrEmpty(Ssid) ? "(hidden)" : Ssid;

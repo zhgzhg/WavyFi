@@ -30,6 +30,155 @@
             <Setter Property="Padding" Value="4,2"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
         </Style>
+        <Style x:Key="ScanSwitchStyle" TargetType="ToggleButton">
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <StackPanel Orientation="Horizontal" Background="Transparent">
+                            <Border x:Name="Track" Width="42" Height="20" CornerRadius="10"
+                                    Background="#3A3A46" VerticalAlignment="Center">
+                                <Ellipse x:Name="Thumb" Width="14" Height="14" Fill="#8A8A94"
+                                         HorizontalAlignment="Left" Margin="3,0"/>
+                            </Border>
+                            <TextBlock x:Name="SwitchLabel" Text="Scan OFF" MinWidth="62"
+                                       Margin="8,0,0,0" VerticalAlignment="Center"
+                                       FontWeight="SemiBold" Foreground="#8A8A94"/>
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Track" Property="Background" Value="#3A5A8C"/>
+                                <Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right"/>
+                                <Setter TargetName="Thumb" Property="Fill" Value="#E8E8EC"/>
+                                <Setter TargetName="SwitchLabel" Property="Text" Value="Scan ON"/>
+                                <Setter TargetName="SwitchLabel" Property="Foreground" Value="#E8E8EC"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style TargetType="ComboBox">
+            <Setter Property="Foreground" Value="#E8E8EC"/>
+            <Setter Property="Background" Value="#26262E"/>
+            <Setter Property="BorderBrush" Value="#3A5A8C"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid x:Name="Root">
+                            <ToggleButton Focusable="False" ClickMode="Press"
+                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border Background="{Binding Background, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                                                BorderBrush="{Binding BorderBrush, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                                                BorderThickness="1" CornerRadius="2">
+                                            <Path HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                  Margin="0,0,8,0" Data="M 0 0 L 4 4 L 8 0 Z" Fill="#8A8A94"/>
+                                        </Border>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+                            <ContentPresenter x:Name="ContentSite" Margin="8,3,24,3"
+                                              VerticalAlignment="Center" HorizontalAlignment="Left"
+                                              Content="{TemplateBinding SelectionBoxItem}"
+                                              ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                              ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
+                                              IsHitTestVisible="False"/>
+                            <Popup Placement="Bottom" IsOpen="{TemplateBinding IsDropDownOpen}"
+                                   AllowsTransparency="True" Focusable="False" PopupAnimation="Slide">
+                                <Border MinWidth="{TemplateBinding ActualWidth}"
+                                        MaxHeight="{TemplateBinding MaxDropDownHeight}"
+                                        Background="#26262E" BorderBrush="#3A3A46" BorderThickness="1">
+                                    <ScrollViewer>
+                                        <StackPanel IsItemsHost="True"
+                                                    KeyboardNavigation.DirectionalNavigation="Contained"/>
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <!-- Locked (scanning on): clearly dimmed, flat border -->
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Root" Property="Opacity" Value="0.45"/>
+                                <Setter Property="BorderBrush" Value="#3A3A46"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style TargetType="ComboBoxItem">
+            <Setter Property="Foreground" Value="#E8E8EC"/>
+            <Setter Property="Padding" Value="8,4"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBoxItem">
+                        <Border x:Name="Bd" Background="Transparent"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#3A5A8C"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style TargetType="Slider">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Slider">
+                        <Grid VerticalAlignment="Center" Height="18">
+                            <Border Height="4" CornerRadius="2" Background="#3A3A46"
+                                    VerticalAlignment="Center"/>
+                            <Track x:Name="PART_Track">
+                                <Track.DecreaseRepeatButton>
+                                    <RepeatButton Command="Slider.DecreaseLarge" Focusable="False">
+                                        <RepeatButton.Template>
+                                            <ControlTemplate TargetType="RepeatButton">
+                                                <Border Height="4" CornerRadius="2" Background="#3A5A8C"
+                                                        VerticalAlignment="Center"/>
+                                            </ControlTemplate>
+                                        </RepeatButton.Template>
+                                    </RepeatButton>
+                                </Track.DecreaseRepeatButton>
+                                <Track.IncreaseRepeatButton>
+                                    <RepeatButton Command="Slider.IncreaseLarge" Focusable="False">
+                                        <RepeatButton.Template>
+                                            <ControlTemplate TargetType="RepeatButton">
+                                                <Rectangle Fill="Transparent"/>
+                                            </ControlTemplate>
+                                        </RepeatButton.Template>
+                                    </RepeatButton>
+                                </Track.IncreaseRepeatButton>
+                                <Track.Thumb>
+                                    <Thumb Width="13" Height="13">
+                                        <Thumb.Template>
+                                            <ControlTemplate TargetType="Thumb">
+                                                <Ellipse Fill="#9BB4D9"/>
+                                            </ControlTemplate>
+                                        </Thumb.Template>
+                                    </Thumb>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style TargetType="Hyperlink">
+            <Setter Property="Foreground" Value="#9BB4D9"/>
+            <Setter Property="TextDecorations" Value="{x:Null}"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Foreground" Value="#B8D0F0"/>
+                    <Setter Property="TextDecorations" Value="Underline"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
         <Style TargetType="TabItem">
             <Setter Property="Foreground" Value="#E8E8EC"/>
             <Setter Property="Template">
@@ -64,8 +213,8 @@
 
         <!-- Toolbar -->
         <DockPanel Grid.Row="0" Grid.ColumnSpan="3" Margin="0,0,0,10">
-            <ToggleButton x:Name="ScanToggle" Content="Scanning: On" Padding="12,4"
-                          IsChecked="True" MinWidth="110"
+            <ToggleButton x:Name="ScanToggle" Style="{StaticResource ScanSwitchStyle}"
+                          IsChecked="True" VerticalAlignment="Center"
                           Checked="ScanToggle_Changed" Unchecked="ScanToggle_Changed"
                           DockPanel.Dock="Left"/>
             <TextBlock Text="Adapter:" VerticalAlignment="Center" Margin="14,0,6,0"
@@ -75,6 +224,13 @@
                       DisplayMemberPath="Description"
                       DropDownOpened="AdapterCombo_DropDownOpened"
                       SelectionChanged="AdapterCombo_SelectionChanged"/>
+            <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Margin="12,0,0,0">
+                <Hyperlink NavigateUri="https://github.com/zhgzhg/WifiOptimizer"
+                           RequestNavigate="RepoLink_RequestNavigate"
+                           ToolTip="Open the project repository">
+                    <Run x:Name="TitleRun" Text="WifiOptimizer"/>
+                </Hyperlink>
+            </TextBlock>
             <Border/>
         </DockPanel>
 
@@ -134,21 +290,24 @@
                 </DataGrid.ContextMenu>
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="(E)SSID" Binding="{Binding DisplayName}" Width="170"/>
-                    <DataGridTextColumn Header="Signal" Binding="{Binding SignalPercent, StringFormat={}{0}%}" Width="60"
+                    <DataGridTextColumn Header="Signal (%)" Binding="{Binding SignalPercent}" Width="70"
                                         Visibility="Collapsed"/>
-                    <DataGridTextColumn Header="RSSI" Binding="{Binding Rssi, StringFormat={}{0} dBm}" Width="75"/>
+                    <DataGridTextColumn Header="RSSI (dBm)" Binding="{Binding Rssi}" Width="80"/>
                     <DataGridTextColumn Header="Ch" Binding="{Binding Channel}" Width="45"/>
-                    <DataGridTextColumn Header="Width" Binding="{Binding ChannelWidthMhz, StringFormat={}{0} MHz}" Width="65"/>
-                    <DataGridTextColumn Header="Freq" Binding="{Binding FrequencyMhz, StringFormat={}{0} MHz}" Width="80"/>
-                    <DataGridTextColumn Header="Band" Binding="{Binding Band}" Width="70"/>
+                    <DataGridTextColumn Header="Width (MHz)" Binding="{Binding ChannelWidthMhz}" Width="90"/>
+                    <DataGridTextColumn Header="Max rate (Mbps)" Binding="{Binding MaxRateMbps, StringFormat={}{0:0.#}}" Width="110"/>
+                    <DataGridTextColumn Header="Freq (MHz)" Binding="{Binding FrequencyMhz}" Width="80"/>
+                    <DataGridTextColumn Header="Band (GHz)" Binding="{Binding BandText}" Width="80"/>
                     <DataGridTextColumn Header="802.11" Binding="{Binding Standards}" Width="80"/>
+                    <DataGridTextColumn Header="Generation" Binding="{Binding Generation}" Width="90"
+                                        Visibility="Collapsed"/>
                     <DataGridTextColumn Header="Security" Binding="{Binding Security}" Width="130"/>
                     <DataGridTextColumn Header="Cipher" Binding="{Binding Cipher}" Width="85"/>
                     <DataGridTextColumn Header="WPS" Binding="{Binding WpsVersion}" Width="45"/>
-                    <DataGridTextColumn Header="Rates (Mbps)" Binding="{Binding RatesCsv}" Width="170"/>
+                    <DataGridTextColumn Header="Legacy rates (Mbps)" Binding="{Binding RatesCsv}" Width="170"/>
                     <DataGridTextColumn Header="BSSID" Binding="{Binding Bssid}" Width="135"/>
                     <DataGridTextColumn Header="Vendor" Binding="{Binding Vendor}" Width="150"/>
-                    <DataGridTextColumn Header="Last seen" Binding="{Binding LastSeenText}" Width="80"/>
+                    <DataGridTextColumn Header="Last seen (s)" Binding="{Binding LastSeenSeconds}" Width="90"/>
                 </DataGrid.Columns>
                 <DataGrid.RowStyle>
                     <Style TargetType="DataGridRow">
@@ -166,7 +325,8 @@
                 </DataGrid.RowStyle>
             </DataGrid>
 
-            <TabControl Grid.Row="3" Background="Transparent" BorderThickness="0" Padding="0">
+            <TabControl x:Name="GraphTabs" Grid.Row="3" Background="Transparent"
+                        BorderThickness="0" Padding="0">
                 <TabItem Header="2.4 GHz">
                     <controls:ChannelGraph x:Name="Graph24" Band="2.4 GHz"/>
                 </TabItem>
@@ -210,14 +370,13 @@
                     </DataGrid.ContextMenu>
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="110"/>
-                        <DataGridTextColumn Header="RSSI" Binding="{Binding SignalText}"
-                                            SortMemberPath="SignalDbm" Width="60"/>
+                        <DataGridTextColumn Header="RSSI (dBm)" Binding="{Binding SignalText}"
+                                            SortMemberPath="SignalDbm" Width="75"/>
                         <DataGridTextColumn Header="Type" Binding="{Binding DeviceType}" Width="85"/>
                         <DataGridTextColumn Header="Paired" Binding="{Binding PairedText}" Width="50"/>
                         <DataGridTextColumn Header="Vendor" Binding="{Binding Vendor}" Width="110"/>
                         <DataGridTextColumn Header="MAC" Binding="{Binding Address}" Width="115"/>
-                        <DataGridTextColumn Header="Last seen" Binding="{Binding LastSeenText}"
-                                            SortMemberPath="LastSeen" Width="70"/>
+                        <DataGridTextColumn Header="Last seen (s)" Binding="{Binding LastSeenSeconds}" Width="80"/>
                     </DataGrid.Columns>
                     <DataGrid.RowStyle>
                         <Style TargetType="DataGridRow">

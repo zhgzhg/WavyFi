@@ -23,7 +23,7 @@ if (await Task.WhenAny(scanDone.Task, Task.Delay(8000)) != scanDone.Task)
 var networks = scanner.GetNetworks();
 Console.WriteLine($"Found {networks.Count} BSS entries:\n");
 foreach (var n in networks)
-    Console.WriteLine($"{n.DisplayName,-28} {n.Bssid}  {n.Rssi,4} dBm  ch {n.Channel,3} {n.ChannelWidthMhz,3}MHz@{n.CenterChannel,-3}  {n.Band,-7} {n.Standards,-12} WPS:{n.WpsVersion,-4} {n.Vendor}{(n.IsConnected ? " [connected]" : "")}");
+    Console.WriteLine($"{n.DisplayName,-28} {n.Bssid}  {n.Rssi,4} dBm  ch {n.Channel,3} {n.ChannelWidthMhz,3}MHz@{n.CenterChannel,-3}  {n.Band,-7} {n.Standards,-12} max {n.MaxRateMbps,6:0.#} Mbps  {n.Vendor}{(n.IsConnected ? " [connected]" : "")}");
 
 Console.WriteLine("\n--- Recommendations ---");
 var entries = networks.Select(n => new NetworkEntry(n, DateTime.Now)).ToList();

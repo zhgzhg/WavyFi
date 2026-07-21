@@ -46,6 +46,9 @@ public partial class MainWindow : Window
         SetupGridHeaders(NetworksGrid, compact: false);
         SetupGridHeaders(PeersGrid, compact: true);
 
+        var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+        TitleRun.Text = $"WifiOptimizer v{version?.Major ?? 1}.{version?.Minor ?? 0} · © 2026 zhgzhg @@ GitHub.com";
+
         _scanner = new WifiScanner();
         // Read results the moment a sweep finishes instead of waiting for the
         // next timer tick — first data lands ~2-4 s after launch. Read-only:
@@ -153,6 +156,19 @@ public partial class MainWindow : Window
 
     private void NetworksGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        // Jump to the channel graph of the band the user just selected.
+        if (e.AddedItems.Count > 0 &&
+            e.AddedItems[e.AddedItems.Count - 1] is NetworkEntry added)
+        {
+            GraphTabs.SelectedIndex = added.Band switch
+            {
+                "2.4 GHz" => 0,
+                "5 GHz" => 1,
+                "6 GHz" => 2,
+                _ => GraphTabs.SelectedIndex,
+            };
+        }
+
         UpdateSignalGraph();
     }
 
@@ -288,20 +304,22 @@ public partial class MainWindow : Window
     private static readonly Dictionary<string, string> ColumnDescriptions = new()
     {
         ["(E)SSID"] = "Extended Service Set ID — the network name broadcast by the access point; \"(hidden)\" when suppressed.",
-        ["Signal"] = "Signal quality as a percentage derived from RSSI.",
-        ["RSSI"] = "Received signal strength in dBm — closer to 0 is stronger (-40 excellent, -85 weak).",
-        ["Ch"] = "Primary 20 MHz channel number.",
-        ["Width"] = "Total bonded channel width: 20/40/80/160 MHz, or up to 320 MHz on WiFi 7 (802.11be).",
-        ["Freq"] = "Center frequency of the primary channel, in MHz.",
-        ["Band"] = "Frequency band: 2.4, 5 or 6 GHz.",
+        ["Signal (%)"] = "Signal quality as a percentage derived from RSSI.",
+        ["RSSI (dBm)"] = "Received signal strength — closer to 0 is stronger (-40 excellent, -85 weak).",
+        ["Ch"] = "Channel — the number of the primary 20 MHz channel the AP beacons on.",
+        ["Width (MHz)"] = "Total bonded channel width: 20/40/80/160, or up to 320 on WiFi 7 (802.11be).",
+        ["Freq (MHz)"] = "Center frequency of the primary channel.",
+        ["Band (GHz)"] = "Frequency band: 2.4, 5 or 6 GHz.",
         ["802.11"] = "Supported 802.11 generations: b/g/a legacy, n = WiFi 4, ac = WiFi 5, ax = WiFi 6, be = WiFi 7.",
+        ["Generation"] = "Friendly name of the newest supported standard: WiFi 4 = n, 5 = ac, 6 = ax (6E on the 6 GHz band), 7 = be. WiFi 1-3 are informal retro-names for b/a/g.",
         ["Security"] = "Authentication method (WPA2/WPA3 Personal or Enterprise, Open, WEP...).",
         ["Cipher"] = "Encryption cipher. AES-CCMP/GCMP are current; TKIP and WEP are legacy and weak.",
         ["WPS"] = "WiFi Protected Setup version advertised by the AP, or \"-\" when not supported.",
-        ["Rates (Mbps)"] = "Legacy data rates advertised by the AP, in Mbps.",
+        ["Max rate (Mbps)"] = "Theoretical top PHY rate from the AP's advertised MCS map, spatial streams and operating width (0.8 µs GI). Real throughput is roughly half.",
+        ["Legacy rates (Mbps)"] = "802.11a/b/g compatibility rates from the beacon's Supported Rates elements — modern rates are expressed as MCS instead; see Max rate.",
         ["BSSID"] = "MAC address of this access point radio (one SSID can have several).",
         ["Vendor"] = "Manufacturer resolved from the MAC prefix (embedded IEEE OUI registry).",
-        ["Last seen"] = "Time since last seen; faded rows are stale.",
+        ["Last seen (s)"] = "Seconds since last seen; faded rows are stale.",
         ["Name"] = "Device name advertised over WiFi Direct.",
         ["Paired"] = "Whether this device is paired with Windows.",
         ["Type"] = "Device category from the WPS Primary Device Type attribute.",
@@ -362,8 +380,9 @@ public partial class MainWindow : Window
     {
         if (PeersGrid.SelectedItem is not PeerEntry p) return;
         var name = p.IsPaired ? $"{p.Name} (paired)" : p.Name;
-        var details = new[] { p.DeviceType, p.Vendor, p.Address, p.SignalText, p.LastSeenText }
-            .Where(s => s.Length > 0);
+        var signal = p.SignalDbm is int s ? $"{s} dBm" : "";
+        var details = new[] { p.DeviceType, p.Vendor, p.Address, signal, $"seen {p.LastSeenSeconds}s ago" }
+            .Where(d => d.Length > 0);
         TrySetClipboard($"{name}{Environment.NewLine}{string.Join("  ·  ", details)}");
     }
 
@@ -373,7 +392,7 @@ public partial class MainWindow : Window
         if (peers.Count == 0) return;
         TrySetClipboard(string.Join(Environment.NewLine, peers.Select(p =>
             string.Join("\t", p.Name + (p.IsPaired ? " (paired)" : ""),
-                p.SignalText, p.DeviceType, p.Vendor, p.Address, p.LastSeenText))));
+                p.SignalText, p.DeviceType, p.Vendor, p.Address, $"{p.LastSeenSeconds}s"))));
     }
 
     /// <summary>Merges the watcher snapshot into the observable collection,
@@ -463,7 +482,6 @@ public partial class MainWindow : Window
         if (ScanToggle.IsChecked == true)
         {
             AdapterCombo.IsEnabled = false;
-            ScanToggle.Content = "Scanning: On";
             ClearAccumulatedData();
             await RefreshAsync();
             _timer.Start();
@@ -472,9 +490,15 @@ public partial class MainWindow : Window
         {
             _timer.Stop();
             AdapterCombo.IsEnabled = true;
-            ScanToggle.Content = "Scanning: Off";
             StatusText.Text = "Scanning paused — table and graphs frozen; adapter can be switched.";
         }
+    }
+
+    private void RepoLink_RequestNavigate(object sender, System.Windows.Navigation.RequestNavigateEventArgs e)
+    {
+        System.Diagnostics.Process.Start(
+            new System.Diagnostics.ProcessStartInfo(e.Uri.AbsoluteUri) { UseShellExecute = true });
+        e.Handled = true;
     }
 
     private void ClearAccumulatedData()
