@@ -93,6 +93,11 @@ public partial class MainWindow : Window
 
         Loaded += async (_, _) =>
         {
+            // The splitter must not shrink the left quadrants enough to wrap
+            // the title/search/band row — measure its real one-line width.
+            LeftColumn.MinWidth = Math.Ceiling(
+                FilterRow1.Children.OfType<FrameworkElement>().Sum(c => c.DesiredSize.Width)) + 2;
+
             _wifiDirect.Start();
             if (ScanToggle.IsChecked == true)
             {
@@ -163,11 +168,17 @@ public partial class MainWindow : Window
     {
         var selected = NetworksGrid.SelectedItems.Cast<NetworkEntry>().ToList();
         SignalGraphView.SetEntries(selected);
+        SignalGraphView.SetPeers(PeersGrid.SelectedItems.Cast<PeerEntry>());
 
         var keys = selected.Select(n => n.Key).ToList();
         Graph24.SetSelection(keys);
         Graph5.SetSelection(keys);
         Graph6.SetSelection(keys);
+    }
+
+    private void PeersGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        UpdateSignalGraph();
     }
 
     private void NetworksGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -260,24 +271,36 @@ public partial class MainWindow : Window
 
     private void SignalGraph_ContextMenuOpening(object sender, ContextMenuEventArgs e)
     {
-        ExportHistoryItem.IsEnabled = NetworksGrid.SelectedItems.Count > 0;
+        ExportHistoryItem.IsEnabled =
+            NetworksGrid.SelectedItems.Count > 0 || PeersGrid.SelectedItems.Count > 0;
     }
 
     private void ExportHistory_Click(object sender, RoutedEventArgs e)
     {
-        var selected = NetworksGrid.SelectedItems.Cast<NetworkEntry>().ToList();
-        if (selected.Count == 0) return;
+        var networks = NetworksGrid.SelectedItems.Cast<NetworkEntry>().ToList();
+        var peers = PeersGrid.SelectedItems.Cast<PeerEntry>().ToList();
+        if (networks.Count == 0 && peers.Count == 0) return;
 
         var sb = new StringBuilder();
-        sb.AppendLine("Timestamp,SSID,BSSID,RSSI (dBm)");
+        sb.AppendLine("Timestamp,Name,BSSID/MAC,RSSI (dBm),Kind");
         int rows = 0;
-        foreach (var entry in selected)
+        foreach (var entry in networks)
         {
             foreach (var (time, rssi) in entry.History)
             {
                 sb.AppendLine(string.Join(",",
                     time.ToString("yyyy-MM-dd HH:mm:ss"),
-                    Csv(entry.DisplayName), Csv(entry.Bssid), rssi));
+                    Csv(entry.DisplayName), Csv(entry.Bssid), rssi, "network"));
+                rows++;
+            }
+        }
+        foreach (var peer in peers)
+        {
+            foreach (var (time, rssi) in peer.History)
+            {
+                sb.AppendLine(string.Join(",",
+                    time.ToString("yyyy-MM-dd HH:mm:ss"),
+                    Csv(peer.Name), Csv(peer.Address), rssi, "wifi-direct"));
                 rows++;
             }
         }
@@ -370,15 +393,38 @@ public partial class MainWindow : Window
         if (e.Rssi < MinRssiSlider.Value)
             return false;
 
+        if (_maxAgeFilterSeconds >= 0 && e.LastSeenSeconds > _maxAgeFilterSeconds)
+            return false;
+
         return true;
     }
+
+    private const double MinAgeSeconds = 5;
+    private const double MaxAgeSeconds = 168 * 3600; // 168 h inclusive
+    private int _maxAgeFilterSeconds = -1;            // -1 = any
 
     private void Filter_Changed(object sender, RoutedEventArgs e)
     {
         if (_view is null || _peersView is null) return; // fires during InitializeComponent
         MinRssiLabel.Text = MinRssiSlider.Value <= MinRssiSlider.Minimum
             ? "any"
-            : $"{(int)MinRssiSlider.Value} dBm";
+            : ((int)MinRssiSlider.Value).ToString();
+
+        if (LastSeenSlider.Value >= LastSeenSlider.Maximum)
+        {
+            _maxAgeFilterSeconds = -1;
+            LastSeenLabel.Text = "any";
+        }
+        else
+        {
+            // Logarithmic scale: a linear 0-168 h slider would make seconds
+            // and minutes unselectable.
+            double t = LastSeenSlider.Value / LastSeenSlider.Maximum;
+            _maxAgeFilterSeconds = (int)Math.Round(
+                MinAgeSeconds * Math.Exp(t * Math.Log(MaxAgeSeconds / MinAgeSeconds)));
+            LastSeenLabel.Text = AgeFormat.Short(_maxAgeFilterSeconds);
+        }
+
         _view.Refresh();
         _peersView.Refresh();
         UpdateGraphs();
@@ -501,6 +547,7 @@ public partial class MainWindow : Window
                 _peerEntries.RemoveAt(i);
 
         _peersView.Refresh();
+        UpdateSignalGraph(); // new peer samples should appear as dots promptly
     }
 
     private bool PeerFilterPredicate(object item)
@@ -518,6 +565,9 @@ public partial class MainWindow : Window
         // With the slider raised, peers with no signal reading can't qualify.
         if (MinRssiSlider.Value > MinRssiSlider.Minimum &&
             (p.SignalDbm is not int signal || signal < MinRssiSlider.Value))
+            return false;
+
+        if (_maxAgeFilterSeconds >= 0 && p.LastSeenSeconds > _maxAgeFilterSeconds)
             return false;
 
         return true;

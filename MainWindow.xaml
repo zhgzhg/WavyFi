@@ -223,6 +223,50 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <!-- Threshold slider with the accent on the LEFT (passing side for a
+             maximum-age filter: younger entries pass). -->
+        <Style x:Key="MaxAgeSlider" TargetType="Slider">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Slider">
+                        <Grid VerticalAlignment="Center" Height="18">
+                            <Border Height="4" CornerRadius="2" Background="#3A3A46"
+                                    VerticalAlignment="Center"/>
+                            <Track x:Name="PART_Track">
+                                <Track.DecreaseRepeatButton>
+                                    <RepeatButton Command="Slider.DecreaseLarge" Focusable="False">
+                                        <RepeatButton.Template>
+                                            <ControlTemplate TargetType="RepeatButton">
+                                                <Border Height="4" CornerRadius="2" Background="#3A5A8C"
+                                                        VerticalAlignment="Center"/>
+                                            </ControlTemplate>
+                                        </RepeatButton.Template>
+                                    </RepeatButton>
+                                </Track.DecreaseRepeatButton>
+                                <Track.IncreaseRepeatButton>
+                                    <RepeatButton Command="Slider.IncreaseLarge" Focusable="False">
+                                        <RepeatButton.Template>
+                                            <ControlTemplate TargetType="RepeatButton">
+                                                <Rectangle Fill="Transparent"/>
+                                            </ControlTemplate>
+                                        </RepeatButton.Template>
+                                    </RepeatButton>
+                                </Track.IncreaseRepeatButton>
+                                <Track.Thumb>
+                                    <Thumb Width="13" Height="13">
+                                        <Thumb.Template>
+                                            <ControlTemplate TargetType="Thumb">
+                                                <Ellipse Fill="#9BB4D9"/>
+                                            </ControlTemplate>
+                                        </Thumb.Template>
+                                    </Thumb>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <Style TargetType="Hyperlink">
             <Setter Property="Foreground" Value="#9BB4D9"/>
             <Setter Property="TextDecorations" Value="{x:Null}"/>
@@ -260,7 +304,7 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="3*" MinWidth="460"/>
+            <ColumnDefinition x:Name="LeftColumn" Width="3*" MinWidth="460"/>
             <ColumnDefinition Width="10"/>
             <ColumnDefinition Width="1.2*" MinWidth="280"/>
         </Grid.ColumnDefinitions>
@@ -338,30 +382,53 @@
                           Background="#2C2C36" ResizeBehavior="PreviousAndNext"/>
 
             <StackPanel Grid.Row="0">
-                <TextBlock Style="{StaticResource SectionHeader}" Text="NEARBY NETWORKS"/>
+                <!-- Row 1: section title + text filters. Row 2: the sliders.
+                     Each filter is one StackPanel so wrapping on narrow
+                     windows moves whole groups, never orphaning a value. -->
+                <WrapPanel x:Name="FilterRow1" Margin="0,0,0,6">
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="NEARBY NETWORKS"
+                               VerticalAlignment="Center" Margin="0,0,18,0"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
+                        <TextBlock Text="Search:" VerticalAlignment="Center" Margin="0,0,6,0"
+                                   Foreground="#8A8A94"/>
+                        <TextBox x:Name="SearchBox" Width="180"
+                                 TextChanged="Filter_Changed"
+                                 ToolTip="Filter by SSID, BSSID or vendor"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="Band:" VerticalAlignment="Center" Margin="0,0,6,0"
+                                   Foreground="#8A8A94"/>
+                        <ComboBox x:Name="BandFilter" Width="100"
+                                  SelectedIndex="0" SelectionChanged="Filter_Changed">
+                            <ComboBoxItem Content="All"/>
+                            <ComboBoxItem Content="2.4 GHz"/>
+                            <ComboBoxItem Content="5 GHz"/>
+                            <ComboBoxItem Content="6 GHz"/>
+                        </ComboBox>
+                    </StackPanel>
+                </WrapPanel>
                 <WrapPanel Margin="0,0,0,8">
-                    <TextBlock Text="Search:" VerticalAlignment="Center" Margin="0,0,6,0"
-                               Foreground="#8A8A94"/>
-                    <TextBox x:Name="SearchBox" Width="180" Margin="0,0,16,0"
-                             TextChanged="Filter_Changed"
-                             ToolTip="Filter by SSID, BSSID or vendor"/>
-                    <TextBlock Text="Band:" VerticalAlignment="Center" Margin="0,0,6,0"
-                               Foreground="#8A8A94"/>
-                    <ComboBox x:Name="BandFilter" Width="100" Margin="0,0,16,0"
-                              SelectedIndex="0" SelectionChanged="Filter_Changed">
-                        <ComboBoxItem Content="All"/>
-                        <ComboBoxItem Content="2.4 GHz"/>
-                        <ComboBoxItem Content="5 GHz"/>
-                        <ComboBoxItem Content="6 GHz"/>
-                    </ComboBox>
-                    <TextBlock Text="Signal ≥" VerticalAlignment="Center" Margin="0,0,6,0"
-                               Foreground="#8A8A94"/>
-                    <Slider x:Name="MinRssiSlider" Width="140" Minimum="-100" Maximum="-30"
-                            Value="-100" VerticalAlignment="Center"
-                            ToolTip="Hide networks and WiFi Direct peers weaker than this — the highlighted part of the track is what passes"
-                            ValueChanged="Filter_Changed"/>
-                    <TextBlock x:Name="MinRssiLabel" Text="any" VerticalAlignment="Center"
-                               Margin="6,0,0,0" Foreground="#8A8A94" MinWidth="64"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,2,0">
+                        <TextBlock Text="Signal (dBm) ≥" VerticalAlignment="Center" Margin="0,0,6,0"
+                                   Foreground="#8A8A94"/>
+                        <Slider x:Name="MinRssiSlider" Width="140" Minimum="-100" Maximum="-30"
+                                Value="-100" VerticalAlignment="Center"
+                                ToolTip="Hide networks and WiFi Direct peers weaker than this — the highlighted part of the track is what passes"
+                                ValueChanged="Filter_Changed"/>
+                        <TextBlock x:Name="MinRssiLabel" Text="any" VerticalAlignment="Center"
+                                   Margin="6,0,0,0" Foreground="#8A8A94" MinWidth="34"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="Seen ≤" VerticalAlignment="Center" Margin="0,0,6,0"
+                                   Foreground="#8A8A94"/>
+                        <Slider x:Name="LastSeenSlider" Width="140" Minimum="0" Maximum="1000"
+                                Value="1000" VerticalAlignment="Center"
+                                Style="{StaticResource MaxAgeSlider}"
+                                ToolTip="Hide networks and WiFi Direct peers not seen within the chosen time (5 s up to 168 h) — the highlighted part of the track is what passes"
+                                ValueChanged="Filter_Changed"/>
+                        <TextBlock x:Name="LastSeenLabel" Text="any" VerticalAlignment="Center"
+                                   Margin="6,0,0,0" Foreground="#8A8A94" MinWidth="48"/>
+                    </StackPanel>
                 </WrapPanel>
             </StackPanel>
 
@@ -452,6 +519,7 @@
                 <TextBlock DockPanel.Dock="Top" Style="{StaticResource SectionHeader}"
                            Text="WIFI DIRECT DEVICES"/>
                 <DataGrid x:Name="PeersGrid"
+                          SelectionChanged="PeersGrid_SelectionChanged"
                           AutoGenerateColumns="False" IsReadOnly="True"
                           HeadersVisibility="Column" GridLinesVisibility="None"
                           HorizontalScrollBarVisibility="Auto"

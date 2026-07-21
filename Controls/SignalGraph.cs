@@ -2,12 +2,15 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Media;
 using WavyFi.Models;
+using WavyFi.WifiDirect;
 
 namespace WavyFi.Controls;
 
 /// <summary>
-/// Signal strength over time for the networks selected in the table.
-/// One polyline per selected network over a sliding 5-minute window.
+/// Signal strength over time for the selected networks (polylines) and
+/// selected WiFi Direct peers (dots — their readings are sparse and
+/// irregular, so connecting them would fake continuity), over a sliding
+/// 5-minute window.
 /// </summary>
 public class SignalGraph : FrameworkElement
 {
@@ -52,9 +55,17 @@ public class SignalGraph : FrameworkElement
         set { _showAdapterIndex = value; InvalidateVisual(); }
     }
 
+    private IReadOnlyList<PeerEntry> _peers = Array.Empty<PeerEntry>();
+
     public void SetEntries(IEnumerable<NetworkEntry> entries)
     {
         _entries = entries.ToList();
+        InvalidateVisual();
+    }
+
+    public void SetPeers(IEnumerable<PeerEntry> peers)
+    {
+        _peers = peers.ToList();
         InvalidateVisual();
     }
 
@@ -78,6 +89,9 @@ public class SignalGraph : FrameworkElement
         foreach (var e in _entries)
             if (e.History.Count > 0 && e.History[^1].Time > newest)
                 newest = e.History[^1].Time;
+        foreach (var p in _peers)
+            if (p.History.Count > 0 && p.History[^1].Time > newest)
+                newest = p.History[^1].Time;
         if (newest != DateTime.MinValue && now - newest > TimeSpan.FromSeconds(10))
             now = newest;
 
@@ -100,9 +114,9 @@ public class SignalGraph : FrameworkElement
             dc.DrawText(t, new Point(Math.Min(x - t.Width / 2, w - right - t.Width), h - bottom + 3));
         }
 
-        if (_entries.Count == 0)
+        if (_entries.Count == 0 && _peers.Count == 0)
         {
-            var hint = Text("Select network(s) in the table to plot signal", 11 * fs, AxisBrush, ppd);
+            var hint = Text("Select network(s) or WiFi Direct peer(s) to plot signal", 11 * fs, AxisBrush, ppd);
             dc.DrawText(hint, new Point((w - hint.Width) / 2, (h - hint.Height) / 2));
             return;
         }
@@ -138,6 +152,25 @@ public class SignalGraph : FrameworkElement
             dc.DrawText(label, new Point(
                 Math.Clamp(lx - label.Width, left, Math.Max(left, w - right - label.Width)),
                 Math.Clamp(ly - label.Height - 2, 0, Math.Max(0, h - bottom - label.Height))));
+        }
+
+        // WiFi Direct peers: sparse readings rendered honestly as dots.
+        double dotRadius = 2.8 * pad;
+        foreach (var p in _peers)
+        {
+            var samples = p.History.Where(s => now - s.Time <= Window).ToList();
+            if (samples.Count == 0) continue;
+
+            var brush = new SolidColorBrush(GraphPalette.ColorFor(p.Address));
+            foreach (var (time, rssi) in samples)
+                dc.DrawEllipse(brush, null, new Point(X(time), Y(rssi)), dotRadius, dotRadius);
+
+            var last = samples[^1];
+            double lx = X(last.Time), ly = Y(last.Rssi);
+            var label = Text($"{p.Name} ({last.Rssi})", 10 * fs, brush, ppd);
+            dc.DrawText(label, new Point(
+                Math.Clamp(lx - label.Width, left, Math.Max(left, w - right - label.Width)),
+                Math.Clamp(ly - label.Height - dotRadius - 2, 0, Math.Max(0, h - bottom - label.Height))));
         }
     }
 

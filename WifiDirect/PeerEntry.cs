@@ -30,6 +30,10 @@ public class PeerEntry : INotifyPropertyChanged
     public string Id { get; }
     public DateTime LastSeen { get; private set; }
 
+    /// <summary>Sparse RSSI samples — peers only yield a reading when Windows
+    /// catches a fresh advertisement, so this fills in bursts (last 10 min).</summary>
+    public List<(DateTime Time, int Rssi)> History { get; } = new();
+
     public string Name { get => _name; private set => Set(ref _name, value); }
 
     public bool IsPaired
@@ -53,6 +57,7 @@ public class PeerEntry : INotifyPropertyChanged
     public string Vendor { get => _vendor; private set => Set(ref _vendor, value); }
     public string Address { get => _address; private set => Set(ref _address, value); }
     public bool IsStale { get => _isStale; private set => Set(ref _isStale, value); }
+
     public int LastSeenSeconds { get => _lastSeenSeconds; private set => Set(ref _lastSeenSeconds, value); }
 
     public void UpdateFrom(WifiDirectPeer peer, DateTime now)
@@ -64,6 +69,15 @@ public class PeerEntry : INotifyPropertyChanged
         Vendor = peer.Vendor;
         Address = peer.Address;
         LastSeen = peer.LastSeen;
+
+        if (peer.SignalDbm is int rssi &&
+            (History.Count == 0 || History[^1].Time != peer.LastSeen))
+        {
+            History.Add((peer.LastSeen, rssi));
+            while (History.Count > 0 && now - History[0].Time > TimeSpan.FromMinutes(10))
+                History.RemoveAt(0);
+        }
+
         Tick(now);
     }
 

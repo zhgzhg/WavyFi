@@ -22,10 +22,15 @@ get a recommendation for the optimal settings of your own network.
   by design — modern rates are advertised as MCS maps, not rate lists).
 - **Vendor identification** — each BSSID (and WiFi Direct peer) is resolved
   to its manufacturer via an embedded IEEE OUI snapshot (see below).
-- **Filtering** — search box (SSID/BSSID/vendor), band selector, and minimum
-  signal slider; the table and graphs both respect the active filter.
-- **Signal over time** — select one or more rows to plot their RSSI
-  history (5-minute sliding window, colors match the channel graphs).
+- **Filtering** — search box (SSID/BSSID/vendor), band selector, minimum
+  signal slider, and a last-seen slider (log scale, 5 s up to 168 h)
+  that hides entries not seen recently enough; the tables and graphs
+  all respect the active filters.
+- **Signal over time** — select one or more network rows to plot their
+  RSSI history as lines (5-minute sliding window, colors match the
+  channel graphs). Selected WiFi Direct peers plot as dots: their
+  readings arrive in sparse bursts, so dots show exactly what was
+  measured instead of faking a continuous line.
 - **Channel graphs** — inSSIDer-style occupancy curves per band
   (custom-drawn, no chart library): each network is a bell curve spanning
   its real bonded width (20 up to 320 MHz, from the HT/VHT/HE/EHT

@@ -112,6 +112,7 @@ public class NetworkEntry : INotifyPropertyChanged
     public double MaxRateMbps { get => _maxRateMbps; private set => Set(ref _maxRateMbps, value); }
     public bool IsConnected { get => _isConnected; private set => Set(ref _isConnected, value); }
     public bool IsStale { get => _isStale; private set => Set(ref _isStale, value); }
+
     public int LastSeenSeconds { get => _lastSeenSeconds; private set => Set(ref _lastSeenSeconds, value); }
 
     public void UpdateFrom(WifiNetwork n, DateTime now)
