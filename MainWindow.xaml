@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="clr-namespace:WavyFi.Controls"
         Title="WavyFi" Height="760" Width="1180"
+        PreviewKeyDown="Window_PreviewKeyDown"
         Background="#1E1E24" Foreground="#E8E8EC">
     <Window.Resources>
         <Style TargetType="TextBlock">
@@ -29,6 +30,30 @@
             <Setter Property="BorderBrush" Value="#3A3A46"/>
             <Setter Property="Padding" Value="4,2"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+        <Style x:Key="ToolButton" TargetType="Button">
+            <Setter Property="Foreground" Value="#E8E8EC"/>
+            <Setter Property="Background" Value="#26262E"/>
+            <Setter Property="BorderBrush" Value="#3A3A46"/>
+            <Setter Property="Padding" Value="9,2"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="1" CornerRadius="2"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#3A5A8C"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
         <Style x:Key="ScanSwitchStyle" TargetType="ToggleButton">
             <Setter Property="Cursor" Value="Hand"/>
@@ -238,6 +263,15 @@
                     <Run x:Name="TitleRun" Text="WavyFi"/>
                 </Hyperlink>
             </TextBlock>
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
+                        VerticalAlignment="Center" Margin="12,0,0,0">
+                <Button Style="{StaticResource ToolButton}" Content="A−" FontSize="11"
+                        ToolTip="Decrease font size (Ctrl+-)" Click="FontDecrease_Click"/>
+                <Button Style="{StaticResource ToolButton}" Content="A" FontSize="11" Margin="4,0,0,0"
+                        ToolTip="Reset font size (Ctrl+0)" Click="FontReset_Click"/>
+                <Button Style="{StaticResource ToolButton}" Content="A+" FontSize="11" Margin="4,0,0,0"
+                        ToolTip="Increase font size (Ctrl++)" Click="FontIncrease_Click"/>
+            </StackPanel>
             <Border/>
         </DockPanel>
 

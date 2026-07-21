@@ -36,6 +36,13 @@ public class SignalGraph : FrameworkElement
         ClipToBounds = true; // never paint outside the plot area
     }
 
+    private double _fontScale = 1.0;
+    public double FontScale
+    {
+        get => _fontScale;
+        set { _fontScale = value; InvalidateVisual(); }
+    }
+
     public void SetEntries(IEnumerable<NetworkEntry> entries)
     {
         _entries = entries.ToList();
@@ -48,7 +55,10 @@ public class SignalGraph : FrameworkElement
         dc.DrawRectangle(Bg, null, new Rect(0, 0, w, h));
         if (w < 80 || h < 50) return;
 
-        const double left = 36, right = 10, top = 8, bottom = 20;
+        double fs = _fontScale;
+        double pad = Math.Max(1.0, fs); // grow axis margins with the font
+        double left = 36 * pad, bottom = 20 * pad;
+        const double right = 10, top = 8;
         double plotW = w - left - right, plotH = h - top - bottom;
         double ppd = VisualTreeHelper.GetDpi(this).PixelsPerDip;
 
@@ -70,20 +80,20 @@ public class SignalGraph : FrameworkElement
         {
             double y = Y(dbm);
             dc.DrawLine(GridPen, new Point(left, y), new Point(w - right, y));
-            var t = Text(dbm.ToString(), 9, AxisBrush, ppd);
+            var t = Text(dbm.ToString(), 9 * fs, AxisBrush, ppd);
             dc.DrawText(t, new Point(left - t.Width - 4, y - t.Height / 2));
         }
 
         for (int min = 5; min >= 0; min--)
         {
             double x = left + (1 - min / 5.0) * plotW;
-            var t = Text(min == 0 ? "now" : $"-{min}m", 9, AxisBrush, ppd);
+            var t = Text(min == 0 ? "now" : $"-{min}m", 9 * fs, AxisBrush, ppd);
             dc.DrawText(t, new Point(Math.Min(x - t.Width / 2, w - right - t.Width), h - bottom + 3));
         }
 
         if (_entries.Count == 0)
         {
-            var hint = Text("Select network(s) in the table to plot signal", 11, AxisBrush, ppd);
+            var hint = Text("Select network(s) in the table to plot signal", 11 * fs, AxisBrush, ppd);
             dc.DrawText(hint, new Point((w - hint.Width) / 2, (h - hint.Height) / 2));
             return;
         }
@@ -114,7 +124,7 @@ public class SignalGraph : FrameworkElement
             double lx = X(last.Time), ly = Y(last.Rssi);
             dc.DrawEllipse(brush, null, new Point(lx, ly), 2.5, 2.5);
 
-            var label = Text($"{e.DisplayName} ({last.Rssi})", 10, brush, ppd);
+            var label = Text($"{e.DisplayName} ({last.Rssi})", 10 * fs, brush, ppd);
             dc.DrawText(label, new Point(
                 Math.Clamp(lx - label.Width, left, Math.Max(left, w - right - label.Width)),
                 Math.Clamp(ly - label.Height - 2, 0, Math.Max(0, h - bottom - label.Height))));

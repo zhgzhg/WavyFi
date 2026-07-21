@@ -39,6 +39,13 @@ public class ChannelGraph : FrameworkElement
         ClipToBounds = true; // out-of-axis channels must not paint over neighbors
     }
 
+    private double _fontScale = 1.0;
+    public double FontScale
+    {
+        get => _fontScale;
+        set { _fontScale = value; InvalidateVisual(); }
+    }
+
     public string Band
     {
         get => _band;
@@ -81,7 +88,10 @@ public class ChannelGraph : FrameworkElement
         dc.DrawRectangle(Bg, null, new Rect(0, 0, w, h));
         if (w < 80 || h < 60) return;
 
-        const double left = 36, right = 10, top = 12, bottom = 22;
+        double fs = _fontScale;
+        double pad = Math.Max(1.0, fs); // grow axis margins with the font
+        double left = 36 * pad, bottom = 22 * pad;
+        const double right = 10, top = 12;
         double plotW = w - left - right, plotH = h - top - bottom;
         double ppd = VisualTreeHelper.GetDpi(this).PixelsPerDip;
 
@@ -92,19 +102,19 @@ public class ChannelGraph : FrameworkElement
         {
             double y = Y(dbm);
             dc.DrawLine(GridPen, new Point(left, y), new Point(w - right, y));
-            var t = Text(dbm.ToString(), 9.5, AxisBrush, ppd);
+            var t = Text(dbm.ToString(), 9.5 * fs, AxisBrush, ppd);
             dc.DrawText(t, new Point(left - t.Width - 4, y - t.Height / 2));
         }
 
         foreach (int ch in _labels)
         {
-            var t = Text(ch.ToString(), 9.5, AxisBrush, ppd);
+            var t = Text(ch.ToString(), 9.5 * fs, AxisBrush, ppd);
             dc.DrawText(t, new Point(XPos(Pos(ch)) - t.Width / 2, h - bottom + 4));
         }
 
         if (_entries.Count == 0)
         {
-            var empty = Text($"No {_band} networks", 12, AxisBrush, ppd);
+            var empty = Text($"No {_band} networks", 12 * fs, AxisBrush, ppd);
             dc.DrawText(empty, new Point((w - empty.Width) / 2, (h - empty.Height) / 2));
             return;
         }
@@ -153,7 +163,7 @@ public class ChannelGraph : FrameworkElement
             geo.Freeze();
             dc.DrawGeometry(fill, stroke, geo);
 
-            var label = Text(e.DisplayName, isSelected ? 12 : 10.5, lineBrush, ppd);
+            var label = Text(e.DisplayName, (isSelected ? 12 : 10.5) * fs, lineBrush, ppd);
             double lx = Math.Clamp(xC - label.Width / 2, left, Math.Max(left, w - right - label.Width));
             dc.DrawText(label, new Point(lx, Math.Max(2, yTop - label.Height - 1)));
         }

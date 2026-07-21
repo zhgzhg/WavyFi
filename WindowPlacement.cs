@@ -84,6 +84,34 @@ internal static class WindowPlacement
         }
     }
 
+    public static double LoadFontScale()
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(KeyPath);
+            if (key is null) return 1.0;
+            var value = ReadDouble(key, "FontScale");
+            return double.IsNaN(value) ? 1.0 : Math.Clamp(value, 0.8, 1.6);
+        }
+        catch
+        {
+            return 1.0;
+        }
+    }
+
+    public static void SaveFontScale(double scale)
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.CreateSubKey(KeyPath);
+            key.SetValue("FontScale", scale.ToString(CultureInfo.InvariantCulture));
+        }
+        catch
+        {
+            // Not worth surfacing.
+        }
+    }
+
     private static double ReadDouble(RegistryKey key, string name) =>
         key.GetValue(name) is string s &&
         double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var value)

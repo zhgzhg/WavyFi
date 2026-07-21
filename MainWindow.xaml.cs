@@ -52,6 +52,9 @@ public partial class MainWindow : Window
         var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
         TitleRun.Text = $"WavyFi v{version?.Major ?? 1}.{version?.Minor ?? 0} · © 2026 zhgzhg @@ GitHub.com";
 
+        _fontScale = WindowPlacement.LoadFontScale();
+        ApplyFontScale();
+
         _scanner = new WifiScanner();
         // Read results the moment a sweep finishes instead of waiting for the
         // next timer tick — first data lands ~2-4 s after launch. Read-only:
@@ -561,6 +564,54 @@ public partial class MainWindow : Window
             _timer.Stop();
             AdapterCombo.IsEnabled = true;
             StatusText.Text = "Scanning paused — table and graphs frozen; adapter can be switched.";
+        }
+    }
+
+    private double _fontScale = 1.0;
+
+    /// <summary>Scales the text of the grids, graphs and recommendations.
+    /// Grid rows grow with their font automatically; the graphs scale their
+    /// drawn labels and axis margins via FontScale.</summary>
+    private void ApplyFontScale()
+    {
+        NetworksGrid.FontSize = 12 * _fontScale;
+        PeersGrid.FontSize = 11 * _fontScale;
+        AdviceText.FontSize = 12 * _fontScale;
+        Graph24.FontScale = _fontScale;
+        Graph5.FontScale = _fontScale;
+        Graph6.FontScale = _fontScale;
+        SignalGraphView.FontScale = _fontScale;
+    }
+
+    private void SetFontScale(double scale)
+    {
+        _fontScale = Math.Clamp(Math.Round(scale, 1), 0.8, 1.6);
+        ApplyFontScale();
+        WindowPlacement.SaveFontScale(_fontScale);
+        StatusText.Text = $"Font size: {(int)(_fontScale * 100)}%";
+    }
+
+    private void FontDecrease_Click(object sender, RoutedEventArgs e) => SetFontScale(_fontScale - 0.1);
+    private void FontIncrease_Click(object sender, RoutedEventArgs e) => SetFontScale(_fontScale + 0.1);
+    private void FontReset_Click(object sender, RoutedEventArgs e) => SetFontScale(1.0);
+
+    private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if ((Keyboard.Modifiers & ModifierKeys.Control) == 0) return;
+        switch (e.Key)
+        {
+            case Key.OemPlus or Key.Add:
+                SetFontScale(_fontScale + 0.1);
+                e.Handled = true;
+                break;
+            case Key.OemMinus or Key.Subtract:
+                SetFontScale(_fontScale - 0.1);
+                e.Handled = true;
+                break;
+            case Key.D0 or Key.NumPad0:
+                SetFontScale(1.0);
+                e.Handled = true;
+                break;
         }
     }
 
