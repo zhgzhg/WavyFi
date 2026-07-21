@@ -29,6 +29,10 @@ public sealed class WifiDirectWatcher : IDisposable
 
     public event Action? PeersChanged;
 
+    /// <summary>Raised when a discovery sweep finishes (before the automatic
+    /// restart) — the peer list is as complete as this sweep gets.</summary>
+    public event Action? SweepCompleted;
+
     public WifiDirectWatcher()
     {
         var selector = WiFiDirectDevice.GetDeviceSelector(
@@ -157,6 +161,8 @@ public sealed class WifiDirectWatcher : IDisposable
 
     private async void OnEnumerationCompleted(DeviceWatcher sender, object args)
     {
+        SweepCompleted?.Invoke();
+
         // The watcher goes idle after the initial sweep; restart it so
         // discovery stays live while the app is open.
         await Task.Delay(TimeSpan.FromSeconds(10));

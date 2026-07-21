@@ -13,7 +13,7 @@ var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 // (including scanner.Dispose) runs on the native wlanapi callback thread,
 // and WlanCloseHandle deadlocks waiting for that callback to return.
 var scanDone = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-scanner.ScanCompleted += () =>
+scanner.ScanCompleted += _ =>
 {
     Console.WriteLine($"Scan-complete notification after {stopwatch.ElapsedMilliseconds} ms");
     scanDone.TrySetResult();

@@ -66,7 +66,7 @@ public partial class MainWindow : Window
         // Read results the moment a sweep finishes instead of waiting for the
         // next timer tick — first data lands ~2-4 s after launch. Read-only:
         // triggering another scan here would loop scan -> complete -> scan.
-        _scanner.ScanCompleted += () => Dispatcher.BeginInvoke(async () =>
+        _scanner.ScanCompleted += _ => Dispatcher.BeginInvoke(async () =>
         {
             if (ScanToggle.IsChecked == true)
                 await RefreshAsync(triggerScan: false);

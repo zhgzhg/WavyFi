@@ -23,9 +23,10 @@ public sealed class WifiScanner : IDisposable
         _ => $"{_selected.Count} adapters",
     };
 
-    /// <summary>Raised (on a native worker thread) when any selected adapter
-    /// finishes a scan sweep — its BSS cache is fresh at that moment.</summary>
-    public event Action? ScanCompleted;
+    /// <summary>Raised (on a native worker thread) when a selected adapter
+    /// finishes a scan sweep — its BSS cache is fresh at that moment.
+    /// Carries the adapter's interface GUID.</summary>
+    public event Action<Guid>? ScanCompleted;
 
     public WifiScanner()
     {
@@ -50,7 +51,7 @@ public sealed class WifiScanner : IDisposable
         {
             var guid = data.InterfaceGuid;
             if (_selected.Any(a => a.Guid == guid))
-                ScanCompleted?.Invoke();
+                ScanCompleted?.Invoke(guid);
         }
     }
 

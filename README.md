@@ -60,6 +60,40 @@ If the network list is empty, enable Location access in
 *Windows Settings > Privacy & security > Location* — Windows gates
 WiFi scan results behind it.
 
+## CLI mode
+
+Running the exe with any arguments scans from the terminal instead of
+opening the window (output attaches to the parent console; redirection
+and piping work):
+
+```
+WavyFi.exe scan [options]    scan for WiFi networks (default verb)
+WavyFi.exe p2p  [options]    list advertising WiFi Direct peers
+
+  --adapters all|N[,M...]  (scan) adapters to use (default: the first one)
+  --list-adapters          (scan) list adapters with their indexes and exit
+  --band 2.4|5|6           (scan) only show this band
+  --advise                 (scan) append channel recommendations
+  --search TEXT            name/BSSID/MAC/vendor substring filter
+  --min-signal DBM         hide entries weaker than this (e.g. -75)
+  --csv                    CSV output instead of a table
+  --sort COL[:asc|desc][,COL...]
+                           sort by column(s), e.g. channel:asc,rssi:desc
+  --watch [SECONDS]        keep scanning every SECONDS (default 5)
+  --timeout SECONDS        max wait per sweep (default: 6 scan, 10 p2p)
+  -v, --version            print the program version
+  -h, --help               usage help
+```
+
+Examples: `WavyFi.exe scan --band 2.4 --min-signal -80 --advise`,
+`WavyFi.exe scan --adapters all --csv > networks.csv`,
+`WavyFi.exe p2p --sort type --watch 10`.
+
+Note: the exe is a GUI-subsystem binary, so cmd/PowerShell print their
+prompt without waiting for it; WavyFi nudges the shell to redraw the
+prompt when the output is done (interactive consoles only — piped and
+redirected output is untouched).
+
 ## Usage
 
 - **Scanning toggle** — starts/stops the 5-second scan loop. Turning it
