@@ -9,6 +9,8 @@ using System.Windows.Input;
 using System.Windows.Threading;
 using WavyFi.Analysis;
 using WavyFi.Models;
+using WavyFi.Settings;
+using WavyFi.Ui;
 using WavyFi.WifiDirect;
 using WavyFi.Wlan;
 
@@ -21,22 +23,22 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _timer;
     private readonly DispatcherTimer _peerTimer;
     private readonly NetworkStore _store = new();
+    private readonly PeerStore _peerStore = new();
     private readonly ListCollectionView _view;
-    private readonly System.Collections.ObjectModel.ObservableCollection<PeerEntry> _peerEntries = new();
     private readonly ListCollectionView _peersView;
     private bool _refreshing;
 
     public MainWindow()
     {
         InitializeComponent();
-        WindowPlacement.Restore(this);
-        WindowPlacement.RestoreColumnLayout("net", NetworksGrid);
-        WindowPlacement.RestoreColumnLayout("p2p", PeersGrid);
+        UserSettings.Restore(this);
+        UserSettings.RestoreColumnLayout("net", NetworksGrid);
+        UserSettings.RestoreColumnLayout("p2p", PeersGrid);
         Closing += (_, _) =>
         {
-            WindowPlacement.Save(this);
-            WindowPlacement.SaveColumnLayout("net", NetworksGrid);
-            WindowPlacement.SaveColumnLayout("p2p", PeersGrid);
+            UserSettings.Save(this);
+            UserSettings.SaveColumnLayout("net", NetworksGrid);
+            UserSettings.SaveColumnLayout("p2p", PeersGrid);
         };
 
         _view = (ListCollectionView)CollectionViewSource.GetDefaultView(_store.Entries);
@@ -48,18 +50,18 @@ public partial class MainWindow : Window
         _view.LiveSortingProperties.Add(nameof(NetworkEntry.Rssi));
         NetworksGrid.ItemsSource = _view;
 
-        _peersView = (ListCollectionView)CollectionViewSource.GetDefaultView(_peerEntries);
+        _peersView = (ListCollectionView)CollectionViewSource.GetDefaultView(_peerStore.Entries);
         _peersView.Filter = PeerFilterPredicate;
         _peersView.SortDescriptions.Add(new SortDescription(nameof(PeerEntry.SignalDbm), ListSortDirection.Descending));
         PeersGrid.ItemsSource = _peersView;
 
-        SetupGridHeaders(NetworksGrid, compact: false);
-        SetupGridHeaders(PeersGrid, compact: true);
+        GridChrome.Setup(NetworksGrid, compact: false);
+        GridChrome.Setup(PeersGrid, compact: true);
 
         var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
         TitleRun.Text = $"WavyFi v{version?.Major ?? 1}.{version?.Minor ?? 0} · © 2026 zhgzhg @@ GitHub.com";
 
-        _fontScale = WindowPlacement.LoadFontScale();
+        _fontScale = UserSettings.LoadFontScale();
         ApplyFontScale();
 
         _scanner = new WifiScanner();
@@ -85,8 +87,7 @@ public partial class MainWindow : Window
         _peerTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
         _peerTimer.Tick += (_, _) =>
         {
-            var now = DateTime.Now;
-            foreach (var p in _peerEntries) p.Tick(now);
+            _peerStore.Tick(DateTime.Now);
             _peersView.Refresh();
         };
         _peerTimer.Start();
@@ -248,25 +249,22 @@ public partial class MainWindow : Window
             rows = new List<NetworkEntry> { _rightClickedRow };
         if (rows.Count == 0) return;
 
-        var columns = VisibleColumnsInOrder(NetworksGrid);
-        var lines = rows.Select(r =>
-            string.Join("\t", columns.Select(c => CellText(c, r))));
-        TrySetClipboard(string.Join(Environment.NewLine, lines));
+        TrySetClipboard(DataGridCsv.TabSeparatedRows(NetworksGrid, rows));
     }
 
     private void CopyTable_Click(object sender, RoutedEventArgs e)
     {
-        TrySetClipboard(BuildGridCsv(NetworksGrid, _view));
+        TrySetClipboard(DataGridCsv.Build(NetworksGrid, _view));
     }
 
     private void ExportTable_Click(object sender, RoutedEventArgs e)
     {
-        ExportCsv("wavyfi-networks.csv", BuildGridCsv(NetworksGrid, _view), _view.Count);
+        ExportCsv("wavyfi-networks.csv", DataGridCsv.Build(NetworksGrid, _view), _view.Count);
     }
 
     private void ExportPeers_Click(object sender, RoutedEventArgs e)
     {
-        ExportCsv("wavyfi-peers.csv", BuildGridCsv(PeersGrid, _peersView), _peersView.Count);
+        ExportCsv("wavyfi-peers.csv", DataGridCsv.Build(PeersGrid, _peersView), _peersView.Count);
     }
 
     private void SignalGraph_ContextMenuOpening(object sender, ContextMenuEventArgs e)
@@ -290,7 +288,7 @@ public partial class MainWindow : Window
             {
                 sb.AppendLine(string.Join(",",
                     time.ToString("yyyy-MM-dd HH:mm:ss"),
-                    Csv(entry.DisplayName), Csv(entry.Bssid), rssi, "network"));
+                    CsvFormat.Escape(entry.DisplayName), CsvFormat.Escape(entry.Bssid), rssi, "network"));
                 rows++;
             }
         }
@@ -300,23 +298,11 @@ public partial class MainWindow : Window
             {
                 sb.AppendLine(string.Join(",",
                     time.ToString("yyyy-MM-dd HH:mm:ss"),
-                    Csv(peer.Name), Csv(peer.Address), rssi, "wifi-direct"));
+                    CsvFormat.Escape(peer.Name), CsvFormat.Escape(peer.Address), rssi, "wifi-direct"));
                 rows++;
             }
         }
         ExportCsv("wavyfi-signal-history.csv", sb.ToString(), rows);
-    }
-
-    /// <summary>CSV of the grid's visible columns in display order, for the
-    /// items of the given (filtered, sorted) view.</summary>
-    private static string BuildGridCsv(DataGrid grid, System.Collections.IEnumerable items)
-    {
-        var columns = VisibleColumnsInOrder(grid);
-        var sb = new StringBuilder();
-        sb.AppendLine(string.Join(",", columns.Select(c => Csv(c.Header?.ToString() ?? ""))));
-        foreach (var item in items)
-            sb.AppendLine(string.Join(",", columns.Select(c => Csv(CellText(c, item)))));
-        return sb.ToString();
     }
 
     private void ExportCsv(string suggestedName, string content, int rowCount)
@@ -340,20 +326,6 @@ public partial class MainWindow : Window
             StatusText.Text = $"Export failed: {ex.Message}";
         }
     }
-
-    private static List<DataGridColumn> VisibleColumnsInOrder(DataGrid grid) =>
-        grid.Columns
-            .Where(c => c.Visibility == Visibility.Visible)
-            .OrderBy(c => c.DisplayIndex)
-            .ToList();
-
-    private static string CellText(DataGridColumn column, object item) =>
-        column.OnCopyingCellClipboardContent(item)?.ToString() ?? "";
-
-    private static string Csv(string value) =>
-        value.IndexOfAny(new[] { ',', '"', '\n', '\r' }) >= 0
-            ? $"\"{value.Replace("\"", "\"\"")}\""
-            : value;
 
     private void TrySetClipboard(string text)
     {
@@ -430,72 +402,6 @@ public partial class MainWindow : Window
         UpdateGraphs();
     }
 
-    private static readonly Dictionary<string, string> ColumnDescriptions = new()
-    {
-        ["(E)SSID"] = "Extended Service Set ID — the network name broadcast by the access point; \"(hidden)\" when suppressed.",
-        ["Signal (%)"] = "Signal quality as a percentage derived from RSSI.",
-        ["RSSI (dBm)"] = "Received signal strength — closer to 0 is stronger (-40 excellent, -85 weak).",
-        ["Ch"] = "Channel — the number of the primary 20 MHz channel the AP beacons on.",
-        ["Width (MHz)"] = "Total bonded channel width: 20/40/80/160, or up to 320 on WiFi 7 (802.11be).",
-        ["Freq (MHz)"] = "Center frequency of the primary channel.",
-        ["Band (GHz)"] = "Frequency band: 2.4, 5 or 6 GHz.",
-        ["802.11"] = "Supported 802.11 generations: b/g/a legacy, n = WiFi 4, ac = WiFi 5, ax = WiFi 6, be = WiFi 7.",
-        ["Generation"] = "Friendly name of the newest supported standard: WiFi 4 = n, 5 = ac, 6 = ax (6E on the 6 GHz band), 7 = be. WiFi 1-3 are informal retro-names for b/a/g.",
-        ["Security"] = "Authentication method (WPA2/WPA3 Personal or Enterprise, Open, WEP...).",
-        ["Cipher"] = "Encryption cipher. AES-CCMP/GCMP are current; TKIP and WEP are legacy and weak.",
-        ["WPS"] = "WiFi Protected Setup version advertised by the AP, or \"-\" when not supported.",
-        ["Max rate (Mbps)"] = "Theoretical top PHY rate from the AP's advertised MCS map, spatial streams and operating width (0.8 µs GI). Real throughput is roughly half.",
-        ["Legacy rates (Mbps)"] = "802.11a/b/g compatibility rates from the beacon's Supported Rates elements — modern rates are expressed as MCS instead; see Max rate.",
-        ["BSSID"] = "MAC address of this access point radio (one SSID can have several).",
-        ["Vendor"] = "Manufacturer resolved from the MAC prefix (embedded IEEE OUI registry).",
-        ["Adapter"] = "The WLAN adapter that heard this reading, as [index] and name — one row per adapter when scanning with several.",
-        ["Last seen (s)"] = "Seconds since last seen; faded rows are stale.",
-        ["Name"] = "Device name advertised over WiFi Direct.",
-        ["Paired"] = "Whether this device is paired with Windows.",
-        ["Type"] = "Device category from the WPS Primary Device Type attribute.",
-        ["MAC"] = "MAC address of the device's WiFi Direct interface.",
-    };
-
-    /// <summary>Gives every column header its tooltip and the grid's own
-    /// column-chooser context menu (built per grid, since each has its own
-    /// column set). Compact grids get tighter header padding.</summary>
-    private void SetupGridHeaders(DataGrid grid, bool compact)
-    {
-        var menu = BuildColumnChooserMenu(grid);
-        var baseStyle = (Style)FindResource(typeof(DataGridColumnHeader));
-        foreach (var col in grid.Columns)
-        {
-            var style = new Style(typeof(DataGridColumnHeader), baseStyle);
-            style.Setters.Add(new Setter(FrameworkElement.ContextMenuProperty, menu));
-            if (compact)
-                style.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(6, 3, 6, 3)));
-            if (col.Header is string header &&
-                ColumnDescriptions.TryGetValue(header, out var description))
-                style.Setters.Add(new Setter(FrameworkElement.ToolTipProperty, description));
-            col.HeaderStyle = style;
-        }
-    }
-
-    private static ContextMenu BuildColumnChooserMenu(DataGrid grid)
-    {
-        var menu = new ContextMenu();
-        foreach (var column in grid.Columns)
-        {
-            var col = column;
-            var item = new MenuItem
-            {
-                Header = col.Header?.ToString(),
-                IsCheckable = true,
-                IsChecked = col.Visibility == Visibility.Visible,
-                StaysOpenOnClick = true,
-            };
-            item.Checked += (_, _) => col.Visibility = Visibility.Visible;
-            item.Unchecked += (_, _) => col.Visibility = Visibility.Collapsed;
-            menu.Items.Add(item);
-        }
-        return menu;
-    }
-
     private void PeersGrid_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
     {
         var row = FindParent<DataGridRow>(e.OriginalSource as DependencyObject);
@@ -525,27 +431,9 @@ public partial class MainWindow : Window
                 p.SignalText, p.DeviceType, p.Vendor, p.Address, $"{p.LastSeenSeconds}s"))));
     }
 
-    /// <summary>Merges the watcher snapshot into the observable collection,
-    /// updating entries in place so grid sorting and selection survive.</summary>
     private void UpdatePeersList()
     {
-        var now = DateTime.Now;
-        var byId = _peerEntries.ToDictionary(p => p.Id);
-        var seen = new HashSet<string>();
-
-        foreach (var peer in _wifiDirect.GetPeers())
-        {
-            seen.Add(peer.Id);
-            if (byId.TryGetValue(peer.Id, out var entry))
-                entry.UpdateFrom(peer, now);
-            else
-                _peerEntries.Add(new PeerEntry(peer, now));
-        }
-
-        for (int i = _peerEntries.Count - 1; i >= 0; i--)
-            if (!seen.Contains(_peerEntries[i].Id))
-                _peerEntries.RemoveAt(i);
-
+        _peerStore.Apply(_wifiDirect.GetPeers(), DateTime.Now);
         _peersView.Refresh();
         UpdateSignalGraph(); // new peer samples should appear as dots promptly
     }
@@ -710,7 +598,7 @@ public partial class MainWindow : Window
     {
         _fontScale = Math.Clamp(Math.Round(scale, 1), 0.8, 1.6);
         ApplyFontScale();
-        WindowPlacement.SaveFontScale(_fontScale);
+        UserSettings.SaveFontScale(_fontScale);
         StatusText.Text = $"Font size: {(int)(_fontScale * 100)}%";
     }
 

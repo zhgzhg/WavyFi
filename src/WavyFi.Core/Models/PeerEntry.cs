@@ -1,7 +1,8 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using WavyFi.WifiDirect;
 
-namespace WavyFi.WifiDirect;
+namespace WavyFi.Models;
 
 /// <summary>
 /// A WiFi Direct peer tracked for display, updated in place so the grid can

@@ -3,14 +3,15 @@ using System.Windows;
 using System.Windows.Controls;
 using Microsoft.Win32;
 
-namespace WavyFi;
+namespace WavyFi.Settings;
 
 /// <summary>
-/// Persists window size, position and maximized state in
-/// HKCU\Software\WavyFi. A window closed while minimized is restored
-/// normal — starting minimized looks like the app failed to launch.
+/// Persists user preferences under HKCU\Software\WavyFi: window size,
+/// position and maximized state, font scale, and per-grid column layouts.
+/// A window closed while minimized is restored normal — starting minimized
+/// looks like the app failed to launch.
 /// </summary>
-internal static class WindowPlacement
+internal static class UserSettings
 {
     private const string KeyPath = @"Software\WavyFi";
 

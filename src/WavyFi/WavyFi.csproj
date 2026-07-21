@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -10,19 +10,14 @@
     <Authors>zhgzhg</Authors>
     <Copyright>© 2026 zhgzhg</Copyright>
     <RepositoryUrl>https://github.com/zhgzhg/WavyFi</RepositoryUrl>
-    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Remove="tools\**" />
-    <None Remove="tools\**" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <EmbeddedResource Include="Resources\manuf.gz" />
+    <ProjectReference Include="..\WavyFi.Core\WavyFi.Core.csproj" />
   </ItemGroup>
 
 </Project>
