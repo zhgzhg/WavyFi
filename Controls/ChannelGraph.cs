@@ -1,9 +1,9 @@
 using System.Globalization;
 using System.Windows;
 using System.Windows.Media;
-using WifiOptimizer.Models;
+using WavyFi.Models;
 
-namespace WifiOptimizer.Controls;
+namespace WavyFi.Controls;
 
 /// <summary>
 /// inSSIDer-style channel occupancy graph: each network is a bell curve

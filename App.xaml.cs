@@ -2,7 +2,7 @@
 using System.Data;
 using System.Windows;
 
-namespace WifiOptimizer;
+namespace WavyFi;
 
 /// <summary>
 /// Interaction logic for App.xaml

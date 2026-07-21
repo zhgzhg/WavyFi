@@ -1,6 +1,6 @@
 using System.Collections.ObjectModel;
 
-namespace WifiOptimizer.Models;
+namespace WavyFi.Models;
 
 /// <summary>
 /// Merges each scan into a persistent collection keyed by BSSID.

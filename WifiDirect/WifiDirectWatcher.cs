@@ -1,7 +1,7 @@
 using Windows.Devices.Enumeration;
 using Windows.Devices.WiFiDirect;
 
-namespace WifiOptimizer.WifiDirect;
+namespace WavyFi.WifiDirect;
 
 public record WifiDirectPeer(
     string Id, string Name, bool IsPaired,

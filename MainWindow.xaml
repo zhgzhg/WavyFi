@@ -1,8 +1,8 @@
-<Window x:Class="WifiOptimizer.MainWindow"
+<Window x:Class="WavyFi.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:controls="clr-namespace:WifiOptimizer.Controls"
-        Title="WiFi Optimizer" Height="760" Width="1180"
+        xmlns:controls="clr-namespace:WavyFi.Controls"
+        Title="WavyFi" Height="760" Width="1180"
         Background="#1E1E24" Foreground="#E8E8EC">
     <Window.Resources>
         <Style TargetType="TextBlock">
@@ -225,10 +225,10 @@
                       DropDownOpened="AdapterCombo_DropDownOpened"
                       SelectionChanged="AdapterCombo_SelectionChanged"/>
             <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Margin="12,0,0,0">
-                <Hyperlink NavigateUri="https://github.com/zhgzhg/WifiOptimizer"
+                <Hyperlink NavigateUri="https://github.com/zhgzhg/WavyFi"
                            RequestNavigate="RepoLink_RequestNavigate"
                            ToolTip="Open the project repository">
-                    <Run x:Name="TitleRun" Text="WifiOptimizer"/>
+                    <Run x:Name="TitleRun" Text="WavyFi"/>
                 </Hyperlink>
             </TextBlock>
             <Border/>

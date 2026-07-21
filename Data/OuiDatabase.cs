@@ -2,7 +2,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Reflection;
 
-namespace WifiOptimizer.Data;
+namespace WavyFi.Data;
 
 /// <summary>
 /// MAC-prefix → manufacturer lookup backed by an embedded, gzipped copy of

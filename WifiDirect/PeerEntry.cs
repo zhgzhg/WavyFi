@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
-namespace WifiOptimizer.WifiDirect;
+namespace WavyFi.WifiDirect;
 
 /// <summary>
 /// A WiFi Direct peer tracked for display, updated in place so the grid can

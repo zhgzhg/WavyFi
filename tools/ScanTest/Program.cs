@@ -1,6 +1,6 @@
-using WifiOptimizer.Analysis;
-using WifiOptimizer.Models;
-using WifiOptimizer.Wlan;
+using WavyFi.Analysis;
+using WavyFi.Models;
+using WavyFi.Wlan;
 
 using var scanner = new WifiScanner();
 Console.WriteLine($"Adapter: {scanner.InterfaceDescription}");

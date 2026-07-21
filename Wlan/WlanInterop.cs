@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace WifiOptimizer.Wlan;
+namespace WavyFi.Wlan;
 
 internal static class WlanInterop
 {

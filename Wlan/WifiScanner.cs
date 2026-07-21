@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
-using WifiOptimizer.Models;
+using WavyFi.Models;
 
-namespace WifiOptimizer.Wlan;
+namespace WavyFi.Wlan;
 
 public record WlanAdapter(Guid Guid, string Description);
 

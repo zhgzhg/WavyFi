@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
-namespace WifiOptimizer.Models;
+namespace WavyFi.Models;
 
 /// <summary>
 /// A network tracked across scans. Entries persist when they drop out of a

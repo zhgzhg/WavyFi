@@ -1,6 +1,6 @@
 using System.Windows.Media;
 
-namespace WifiOptimizer.Controls;
+namespace WavyFi.Controls;
 
 /// <summary>Stable per-network colors derived from the BSSID, shared by
 /// all graphs so a network looks the same everywhere.</summary>

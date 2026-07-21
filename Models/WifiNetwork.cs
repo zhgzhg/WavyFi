@@ -1,4 +1,4 @@
-namespace WifiOptimizer.Models;
+namespace WavyFi.Models;
 
 public class WifiNetwork
 {

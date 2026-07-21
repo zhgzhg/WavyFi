@@ -1,7 +1,7 @@
 using System.Text;
-using WifiOptimizer.Models;
+using WavyFi.Models;
 
-namespace WifiOptimizer.Analysis;
+namespace WavyFi.Analysis;
 
 /// <summary>
 /// Scores channel congestion from scan results and produces plain-language

@@ -6,12 +6,12 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Threading;
-using WifiOptimizer.Analysis;
-using WifiOptimizer.Models;
-using WifiOptimizer.WifiDirect;
-using WifiOptimizer.Wlan;
+using WavyFi.Analysis;
+using WavyFi.Models;
+using WavyFi.WifiDirect;
+using WavyFi.Wlan;
 
-namespace WifiOptimizer;
+namespace WavyFi;
 
 public partial class MainWindow : Window
 {
@@ -28,6 +28,8 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        WindowPlacement.Restore(this);
+        Closing += (_, _) => WindowPlacement.Save(this);
 
         _view = (ListCollectionView)CollectionViewSource.GetDefaultView(_store.Entries);
         _view.Filter = FilterPredicate;
@@ -47,7 +49,7 @@ public partial class MainWindow : Window
         SetupGridHeaders(PeersGrid, compact: true);
 
         var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
-        TitleRun.Text = $"WifiOptimizer v{version?.Major ?? 1}.{version?.Minor ?? 0} · © 2026 zhgzhg @@ GitHub.com";
+        TitleRun.Text = $"WavyFi v{version?.Major ?? 1}.{version?.Minor ?? 0} · © 2026 zhgzhg @@ GitHub.com";
 
         _scanner = new WifiScanner();
         // Read results the moment a sweep finishes instead of waiting for the

@@ -1,9 +1,9 @@
 using System.Globalization;
 using System.Windows;
 using System.Windows.Media;
-using WifiOptimizer.Models;
+using WavyFi.Models;
 
-namespace WifiOptimizer.Controls;
+namespace WavyFi.Controls;
 
 /// <summary>
 /// Signal strength over time for the networks selected in the table.

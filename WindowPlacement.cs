@@ -1,0 +1,92 @@
+using System.Globalization;
+using System.Windows;
+using Microsoft.Win32;
+
+namespace WavyFi;
+
+/// <summary>
+/// Persists window size, position and maximized state in
+/// HKCU\Software\WavyFi. A window closed while minimized is restored
+/// normal — starting minimized looks like the app failed to launch.
+/// </summary>
+internal static class WindowPlacement
+{
+    private const string KeyPath = @"Software\WavyFi";
+
+    public static void Restore(Window window)
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(KeyPath);
+            if (key is null) return;
+
+            double left = ReadDouble(key, "Left");
+            double top = ReadDouble(key, "Top");
+            double width = ReadDouble(key, "Width");
+            double height = ReadDouble(key, "Height");
+
+            if (width >= window.MinWidth && height >= window.MinHeight &&
+                width >= 400 && height >= 300)
+            {
+                var virtualScreen = new Rect(
+                    SystemParameters.VirtualScreenLeft, SystemParameters.VirtualScreenTop,
+                    SystemParameters.VirtualScreenWidth, SystemParameters.VirtualScreenHeight);
+
+                // The screen may have shrunk since the last run (resolution
+                // change, unplugged monitor): clamp the size to fit, then pull
+                // the position back so the whole window stays visible.
+                width = Math.Min(width, virtualScreen.Width);
+                height = Math.Min(height, virtualScreen.Height);
+                window.Width = width;
+                window.Height = height;
+
+                if (!double.IsNaN(left) && !double.IsNaN(top))
+                {
+                    window.Left = Math.Clamp(left, virtualScreen.Left,
+                        Math.Max(virtualScreen.Left, virtualScreen.Right - width));
+                    window.Top = Math.Clamp(top, virtualScreen.Top,
+                        Math.Max(virtualScreen.Top, virtualScreen.Bottom - height));
+                }
+            }
+
+            if (key.GetValue("Maximized") is int maximized && maximized == 1)
+                window.WindowState = WindowState.Maximized;
+        }
+        catch
+        {
+            // Unreadable/corrupt values: keep XAML defaults.
+        }
+    }
+
+    public static void Save(Window window)
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.CreateSubKey(KeyPath);
+
+            // When maximized or minimized, RestoreBounds holds the normal-state
+            // rectangle — that's what should come back as the resize baseline.
+            var bounds = window.WindowState == WindowState.Normal
+                ? new Rect(window.Left, window.Top, window.Width, window.Height)
+                : window.RestoreBounds;
+
+            key.SetValue("Left", bounds.Left.ToString(CultureInfo.InvariantCulture));
+            key.SetValue("Top", bounds.Top.ToString(CultureInfo.InvariantCulture));
+            key.SetValue("Width", bounds.Width.ToString(CultureInfo.InvariantCulture));
+            key.SetValue("Height", bounds.Height.ToString(CultureInfo.InvariantCulture));
+            key.SetValue("Maximized",
+                window.WindowState == WindowState.Maximized ? 1 : 0,
+                RegistryValueKind.DWord);
+        }
+        catch
+        {
+            // Failing to persist placement is never worth an error dialog.
+        }
+    }
+
+    private static double ReadDouble(RegistryKey key, string name) =>
+        key.GetValue(name) is string s &&
+        double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
+            ? value
+            : double.NaN;
+}

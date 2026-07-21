@@ -1,4 +1,4 @@
-# WifiOptimizer
+# WavyFi
 
 A lightweight inSSIDer-style scanner for Windows, built with C# / WPF
 (no third-party dependencies). Its goal is not raw detail but actionable
@@ -136,5 +136,6 @@ never appear in the registry and are shown as "(unknown vendor)".
 | `Models/` | Data models and the persistent scan-to-scan network store |
 | `Controls/` | Custom-drawn channel occupancy and signal-over-time graphs |
 | `Data/` | Loader for the embedded OUI (MAC prefix → vendor) database |
-| `Resources/` | Embedded assets (`manuf.gz` OUI snapshot) |
+| `Resources/` | Embedded assets (`manuf.gz` OUI snapshot, `WavyFi.ico`) |
 | `tools/ScanTest/` | Console harness for testing the scanner without the UI |
+| `tools/IconGen/` | Regenerates `Resources/WavyFi.ico` (channel-arcs design): `dotnet run --project tools/IconGen -- Resources/WavyFi.ico` |
