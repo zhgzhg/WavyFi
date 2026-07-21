@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.IO;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
@@ -223,7 +224,7 @@ public partial class MainWindow : Window
             rows = new List<NetworkEntry> { _rightClickedRow };
         if (rows.Count == 0) return;
 
-        var columns = VisibleColumnsInOrder();
+        var columns = VisibleColumnsInOrder(NetworksGrid);
         var lines = rows.Select(r =>
             string.Join("\t", columns.Select(c => CellText(c, r))));
         TrySetClipboard(string.Join(Environment.NewLine, lines));
@@ -231,16 +232,81 @@ public partial class MainWindow : Window
 
     private void CopyTable_Click(object sender, RoutedEventArgs e)
     {
-        var columns = VisibleColumnsInOrder();
-        var sb = new StringBuilder();
-        sb.AppendLine(string.Join(",", columns.Select(c => Csv(c.Header?.ToString() ?? ""))));
-        foreach (var item in _view.Cast<NetworkEntry>())
-            sb.AppendLine(string.Join(",", columns.Select(c => Csv(CellText(c, item)))));
-        TrySetClipboard(sb.ToString());
+        TrySetClipboard(BuildGridCsv(NetworksGrid, _view));
     }
 
-    private List<DataGridColumn> VisibleColumnsInOrder() =>
-        NetworksGrid.Columns
+    private void ExportTable_Click(object sender, RoutedEventArgs e)
+    {
+        ExportCsv("wavyfi-networks.csv", BuildGridCsv(NetworksGrid, _view), _view.Count);
+    }
+
+    private void ExportPeers_Click(object sender, RoutedEventArgs e)
+    {
+        ExportCsv("wavyfi-peers.csv", BuildGridCsv(PeersGrid, _peersView), _peersView.Count);
+    }
+
+    private void SignalGraph_ContextMenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        ExportHistoryItem.IsEnabled = NetworksGrid.SelectedItems.Count > 0;
+    }
+
+    private void ExportHistory_Click(object sender, RoutedEventArgs e)
+    {
+        var selected = NetworksGrid.SelectedItems.Cast<NetworkEntry>().ToList();
+        if (selected.Count == 0) return;
+
+        var sb = new StringBuilder();
+        sb.AppendLine("Timestamp,SSID,BSSID,RSSI (dBm)");
+        int rows = 0;
+        foreach (var entry in selected)
+        {
+            foreach (var (time, rssi) in entry.History)
+            {
+                sb.AppendLine(string.Join(",",
+                    time.ToString("yyyy-MM-dd HH:mm:ss"),
+                    Csv(entry.DisplayName), Csv(entry.Bssid), rssi));
+                rows++;
+            }
+        }
+        ExportCsv("wavyfi-signal-history.csv", sb.ToString(), rows);
+    }
+
+    /// <summary>CSV of the grid's visible columns in display order, for the
+    /// items of the given (filtered, sorted) view.</summary>
+    private static string BuildGridCsv(DataGrid grid, System.Collections.IEnumerable items)
+    {
+        var columns = VisibleColumnsInOrder(grid);
+        var sb = new StringBuilder();
+        sb.AppendLine(string.Join(",", columns.Select(c => Csv(c.Header?.ToString() ?? ""))));
+        foreach (var item in items)
+            sb.AppendLine(string.Join(",", columns.Select(c => Csv(CellText(c, item)))));
+        return sb.ToString();
+    }
+
+    private void ExportCsv(string suggestedName, string content, int rowCount)
+    {
+        var dialog = new Microsoft.Win32.SaveFileDialog
+        {
+            Filter = "CSV files (*.csv)|*.csv|All files (*.*)|*.*",
+            FileName = suggestedName,
+            DefaultExt = ".csv",
+        };
+        if (dialog.ShowDialog(this) != true) return;
+
+        try
+        {
+            // UTF-8 with BOM so Excel detects the encoding.
+            File.WriteAllText(dialog.FileName, content, new UTF8Encoding(true));
+            StatusText.Text = $"Exported {rowCount} rows to {dialog.FileName}";
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = $"Export failed: {ex.Message}";
+        }
+    }
+
+    private static List<DataGridColumn> VisibleColumnsInOrder(DataGrid grid) =>
+        grid.Columns
             .Where(c => c.Visibility == Visibility.Visible)
             .OrderBy(c => c.DisplayIndex)
             .ToList();

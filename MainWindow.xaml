@@ -299,6 +299,8 @@
                         <MenuItem x:Name="CopyCellItem" Header="Copy cell" Click="CopyCell_Click"/>
                         <MenuItem Header="Copy row(s)" Click="CopyRows_Click"/>
                         <MenuItem Header="Copy table (CSV)" Click="CopyTable_Click"/>
+                        <Separator/>
+                        <MenuItem Header="Export table to CSV file..." Click="ExportTable_Click"/>
                     </ContextMenu>
                 </DataGrid.ContextMenu>
                 <DataGrid.Columns>
@@ -379,6 +381,8 @@
                         <ContextMenu>
                             <MenuItem Header="Copy device info" Click="CopyPeer_Click"/>
                             <MenuItem Header="Copy list" Click="CopyPeerList_Click"/>
+                            <Separator/>
+                            <MenuItem Header="Export list to CSV file..." Click="ExportPeers_Click"/>
                         </ContextMenu>
                     </DataGrid.ContextMenu>
                     <DataGrid.Columns>
@@ -407,7 +411,16 @@
             <DockPanel Grid.Row="2">
                 <TextBlock DockPanel.Dock="Top" Style="{StaticResource SectionHeader}"
                            Text="SIGNAL OVER TIME"/>
-                <controls:SignalGraph x:Name="SignalGraphView"/>
+                <controls:SignalGraph x:Name="SignalGraphView"
+                                      ContextMenuOpening="SignalGraph_ContextMenuOpening">
+                    <controls:SignalGraph.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem x:Name="ExportHistoryItem"
+                                      Header="Export history to CSV file..."
+                                      Click="ExportHistory_Click"/>
+                        </ContextMenu>
+                    </controls:SignalGraph.ContextMenu>
+                </controls:SignalGraph>
             </DockPanel>
 
             <DockPanel Grid.Row="4">
