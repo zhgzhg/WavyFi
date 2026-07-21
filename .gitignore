@@ -1,0 +1,14 @@
+# Build output
+bin/
+obj/
+publish/
+
+# IDE state
+.vs/
+.idea/
+*.user
+*.suo
+
+# Logs and temporary files
+*.log
+*.tmp

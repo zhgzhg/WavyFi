@@ -1,0 +1,259 @@
+<Window x:Class="WifiOptimizer.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:WifiOptimizer.Controls"
+        Title="WiFi Optimizer" Height="760" Width="1180"
+        Background="#1E1E24" Foreground="#E8E8EC">
+    <Window.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#E8E8EC"/>
+        </Style>
+        <Style x:Key="SectionHeader" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="#9BB4D9"/>
+            <Setter Property="Margin" Value="0,0,0,6"/>
+        </Style>
+        <Style TargetType="DataGridColumnHeader">
+            <Setter Property="ContextMenu" Value="{DynamicResource ColumnChooserMenu}"/>
+            <Setter Property="Background" Value="#2C2C36"/>
+            <Setter Property="Foreground" Value="#9BB4D9"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="BorderThickness" Value="0,0,1,1"/>
+            <Setter Property="BorderBrush" Value="#3A3A46"/>
+        </Style>
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="#26262E"/>
+            <Setter Property="Foreground" Value="#E8E8EC"/>
+            <Setter Property="CaretBrush" Value="#E8E8EC"/>
+            <Setter Property="BorderBrush" Value="#3A3A46"/>
+            <Setter Property="Padding" Value="4,2"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+        <Style TargetType="TabItem">
+            <Setter Property="Foreground" Value="#E8E8EC"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="Bd" Background="#26262E" Padding="14,5"
+                                Margin="0,0,2,0" CornerRadius="4,4,0,0">
+                            <ContentPresenter ContentSource="Header"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#3A5A8C"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="3*"/>
+            <ColumnDefinition Width="12"/>
+            <ColumnDefinition Width="1.2*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Toolbar -->
+        <DockPanel Grid.Row="0" Grid.ColumnSpan="3" Margin="0,0,0,10">
+            <ToggleButton x:Name="ScanToggle" Content="Scanning: On" Padding="12,4"
+                          IsChecked="True" MinWidth="110"
+                          Checked="ScanToggle_Changed" Unchecked="ScanToggle_Changed"
+                          DockPanel.Dock="Left"/>
+            <TextBlock Text="Adapter:" VerticalAlignment="Center" Margin="14,0,6,0"
+                       Foreground="#8A8A94" DockPanel.Dock="Left"/>
+            <ComboBox x:Name="AdapterCombo" MinWidth="280" MaxWidth="420"
+                      VerticalAlignment="Center" DockPanel.Dock="Left"
+                      DisplayMemberPath="Description"
+                      DropDownOpened="AdapterCombo_DropDownOpened"
+                      SelectionChanged="AdapterCombo_SelectionChanged"/>
+            <Border/>
+        </DockPanel>
+
+        <!-- Left column: filter + table + graphs -->
+        <Grid Grid.Row="1" Grid.Column="0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="3*"/>
+                <RowDefinition Height="12"/>
+                <RowDefinition Height="2*" MinHeight="200"/>
+            </Grid.RowDefinitions>
+
+            <StackPanel Grid.Row="0">
+                <TextBlock Style="{StaticResource SectionHeader}" Text="NEARBY NETWORKS"/>
+                <WrapPanel Margin="0,0,0,8">
+                    <TextBlock Text="Search:" VerticalAlignment="Center" Margin="0,0,6,0"
+                               Foreground="#8A8A94"/>
+                    <TextBox x:Name="SearchBox" Width="180" Margin="0,0,16,0"
+                             TextChanged="Filter_Changed"
+                             ToolTip="Filter by SSID, BSSID or vendor"/>
+                    <TextBlock Text="Band:" VerticalAlignment="Center" Margin="0,0,6,0"
+                               Foreground="#8A8A94"/>
+                    <ComboBox x:Name="BandFilter" Width="100" Margin="0,0,16,0"
+                              SelectedIndex="0" SelectionChanged="Filter_Changed">
+                        <ComboBoxItem Content="All"/>
+                        <ComboBoxItem Content="2.4 GHz"/>
+                        <ComboBoxItem Content="5 GHz"/>
+                        <ComboBoxItem Content="6 GHz"/>
+                    </ComboBox>
+                    <TextBlock Text="Min signal:" VerticalAlignment="Center" Margin="0,0,6,0"
+                               Foreground="#8A8A94"/>
+                    <Slider x:Name="MinRssiSlider" Width="140" Minimum="-100" Maximum="-30"
+                            Value="-100" VerticalAlignment="Center"
+                            ValueChanged="Filter_Changed"/>
+                    <TextBlock x:Name="MinRssiLabel" Text="-100 dBm" VerticalAlignment="Center"
+                               Margin="6,0,0,0" Foreground="#8A8A94" MinWidth="60"/>
+                </WrapPanel>
+            </StackPanel>
+
+            <DataGrid x:Name="NetworksGrid" Grid.Row="1"
+                      SelectionChanged="NetworksGrid_SelectionChanged"
+                      PreviewMouseLeftButtonDown="NetworksGrid_PreviewMouseLeftButtonDown"
+                      PreviewMouseRightButtonDown="NetworksGrid_PreviewMouseRightButtonDown"
+                      ClipboardCopyMode="ExcludeHeader"
+                      AutoGenerateColumns="False" IsReadOnly="True"
+                      HeadersVisibility="Column" GridLinesVisibility="None"
+                      HorizontalScrollBarVisibility="Auto" FrozenColumnCount="1"
+                      CanUserReorderColumns="True"
+                      Background="#26262E" Foreground="#E8E8EC" BorderThickness="0"
+                      RowBackground="#26262E" AlternatingRowBackground="#2C2C36">
+                <DataGrid.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem x:Name="CopyCellItem" Header="Copy cell" Click="CopyCell_Click"/>
+                        <MenuItem Header="Copy row(s)" Click="CopyRows_Click"/>
+                        <MenuItem Header="Copy table (CSV)" Click="CopyTable_Click"/>
+                    </ContextMenu>
+                </DataGrid.ContextMenu>
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="(E)SSID" Binding="{Binding DisplayName}" Width="170"/>
+                    <DataGridTextColumn Header="Signal" Binding="{Binding SignalPercent, StringFormat={}{0}%}" Width="60"
+                                        Visibility="Collapsed"/>
+                    <DataGridTextColumn Header="RSSI" Binding="{Binding Rssi, StringFormat={}{0} dBm}" Width="75"/>
+                    <DataGridTextColumn Header="Ch" Binding="{Binding Channel}" Width="45"/>
+                    <DataGridTextColumn Header="Width" Binding="{Binding ChannelWidthMhz, StringFormat={}{0} MHz}" Width="65"/>
+                    <DataGridTextColumn Header="Freq" Binding="{Binding FrequencyMhz, StringFormat={}{0} MHz}" Width="80"/>
+                    <DataGridTextColumn Header="Band" Binding="{Binding Band}" Width="70"/>
+                    <DataGridTextColumn Header="802.11" Binding="{Binding Standards}" Width="80"/>
+                    <DataGridTextColumn Header="Security" Binding="{Binding Security}" Width="130"/>
+                    <DataGridTextColumn Header="Cipher" Binding="{Binding Cipher}" Width="85"/>
+                    <DataGridTextColumn Header="WPS" Binding="{Binding WpsVersion}" Width="45"/>
+                    <DataGridTextColumn Header="Rates (Mbps)" Binding="{Binding RatesCsv}" Width="170"/>
+                    <DataGridTextColumn Header="BSSID" Binding="{Binding Bssid}" Width="135"/>
+                    <DataGridTextColumn Header="Vendor" Binding="{Binding Vendor}" Width="150"/>
+                    <DataGridTextColumn Header="Last seen" Binding="{Binding LastSeenText}" Width="80"/>
+                </DataGrid.Columns>
+                <DataGrid.RowStyle>
+                    <Style TargetType="DataGridRow">
+                        <Setter Property="Background" Value="#26262E"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsConnected}" Value="True">
+                                <Setter Property="Background" Value="#1F3A2A"/>
+                                <Setter Property="FontWeight" Value="SemiBold"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsStale}" Value="True">
+                                <Setter Property="Opacity" Value="0.4"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </DataGrid.RowStyle>
+            </DataGrid>
+
+            <TabControl Grid.Row="3" Background="Transparent" BorderThickness="0" Padding="0">
+                <TabItem Header="2.4 GHz">
+                    <controls:ChannelGraph x:Name="Graph24" Band="2.4 GHz"/>
+                </TabItem>
+                <TabItem Header="5 GHz">
+                    <controls:ChannelGraph x:Name="Graph5" Band="5 GHz"/>
+                </TabItem>
+                <TabItem Header="6 GHz">
+                    <controls:ChannelGraph x:Name="Graph6" Band="6 GHz"/>
+                </TabItem>
+            </TabControl>
+        </Grid>
+
+        <!-- Right column: WiFi Direct + signal graph + recommendations -->
+        <Grid Grid.Row="1" Grid.Column="2">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="12"/>
+                <RowDefinition Height="1.4*"/>
+                <RowDefinition Height="12"/>
+                <RowDefinition Height="170"/>
+            </Grid.RowDefinitions>
+
+            <DockPanel Grid.Row="0">
+                <TextBlock DockPanel.Dock="Top" Style="{StaticResource SectionHeader}"
+                           Text="WIFI DIRECT DEVICES"/>
+                <ListBox x:Name="PeersList" Background="#26262E" Foreground="#E8E8EC"
+                         BorderThickness="0"
+                         PreviewMouseRightButtonDown="PeersList_PreviewMouseRightButtonDown">
+                    <ListBox.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="Copy device info" Click="CopyPeer_Click"/>
+                            <MenuItem Header="Copy list" Click="CopyPeerList_Click"/>
+                        </ContextMenu>
+                    </ListBox.ContextMenu>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Margin="2,3">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
+                                    <TextBlock Text="  (paired)" Foreground="#7FB77F">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsPaired}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </StackPanel>
+                                <TextBlock Text="{Binding Detail}" Foreground="#8A8A94"
+                                           FontSize="11" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </DockPanel>
+
+            <DockPanel Grid.Row="2">
+                <TextBlock DockPanel.Dock="Top" Style="{StaticResource SectionHeader}"
+                           Text="SIGNAL OVER TIME"/>
+                <controls:SignalGraph x:Name="SignalGraphView"/>
+            </DockPanel>
+
+            <DockPanel Grid.Row="4">
+                <TextBlock DockPanel.Dock="Top" Style="{StaticResource SectionHeader}"
+                           Text="RECOMMENDATIONS"/>
+                <Border Background="#26262E" Padding="10">
+                    <TextBox x:Name="AdviceText" IsReadOnly="True" TextWrapping="Wrap"
+                             FontFamily="Consolas" BorderThickness="0"
+                             VerticalScrollBarVisibility="Auto"
+                             Text="Waiting for first scan..."/>
+                </Border>
+            </DockPanel>
+        </Grid>
+
+        <!-- Status bar -->
+        <Border Grid.Row="2" Grid.ColumnSpan="3" Background="#26262E"
+                Padding="10,5" Margin="0,10,0,0">
+            <DockPanel>
+                <TextBlock x:Name="StatsText" DockPanel.Dock="Right"
+                           Foreground="#8A8A94" Text=""/>
+                <TextBlock x:Name="StatusText" Foreground="#8A8A94" Text="Starting..."/>
+            </DockPanel>
+        </Border>
+    </Grid>
+</Window>

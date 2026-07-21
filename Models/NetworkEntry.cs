@@ -1,0 +1,113 @@
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
+
+namespace WifiOptimizer.Models;
+
+/// <summary>
+/// A network tracked across scans. Entries persist when they drop out of a
+/// scan (marked stale and faded) instead of disappearing immediately.
+/// </summary>
+public class NetworkEntry : INotifyPropertyChanged
+{
+    private string _ssid = "";
+    private string _vendor = "";
+    private int _rssi;
+    private int _signalPercent;
+    private int _channel;
+    private int _channelWidthMhz = 20;
+    private int _centerChannel;
+    private int _frequencyMhz;
+    private string _band = "";
+    private string _standards = "";
+    private string _security = "";
+    private string _cipher = "";
+    private string _wpsVersion = "-";
+    private string _ratesCsv = "";
+    private bool _isConnected;
+    private bool _isStale;
+    private string _lastSeenText = "now";
+
+    public NetworkEntry(WifiNetwork n, DateTime now)
+    {
+        Bssid = n.Bssid;
+        UpdateFrom(n, now);
+    }
+
+    public string Bssid { get; }
+    public DateTime LastSeen { get; private set; }
+
+    /// <summary>RSSI samples from each scan the network appeared in (last 10 min).</summary>
+    public List<(DateTime Time, int Rssi)> History { get; } = new();
+
+    public string Ssid
+    {
+        get => _ssid;
+        private set { if (Set(ref _ssid, value)) OnPropertyChanged(nameof(DisplayName)); }
+    }
+
+    public string DisplayName => string.IsNullOrEmpty(Ssid) ? "(hidden)" : Ssid;
+    public string Vendor { get => _vendor; private set => Set(ref _vendor, value); }
+    public int Rssi { get => _rssi; private set => Set(ref _rssi, value); }
+    public int SignalPercent { get => _signalPercent; private set => Set(ref _signalPercent, value); }
+    public int Channel { get => _channel; private set => Set(ref _channel, value); }
+    public int ChannelWidthMhz { get => _channelWidthMhz; private set => Set(ref _channelWidthMhz, value); }
+    public int CenterChannel { get => _centerChannel; private set => Set(ref _centerChannel, value); }
+    public int FrequencyMhz { get => _frequencyMhz; private set => Set(ref _frequencyMhz, value); }
+    public string Band { get => _band; private set => Set(ref _band, value); }
+    public string Standards { get => _standards; private set => Set(ref _standards, value); }
+    public string Security { get => _security; private set => Set(ref _security, value); }
+    public string Cipher { get => _cipher; private set => Set(ref _cipher, value); }
+    public string WpsVersion { get => _wpsVersion; private set => Set(ref _wpsVersion, value); }
+    public string RatesCsv { get => _ratesCsv; private set => Set(ref _ratesCsv, value); }
+    public bool IsConnected { get => _isConnected; private set => Set(ref _isConnected, value); }
+    public bool IsStale { get => _isStale; private set => Set(ref _isStale, value); }
+    public string LastSeenText { get => _lastSeenText; private set => Set(ref _lastSeenText, value); }
+
+    public void UpdateFrom(WifiNetwork n, DateTime now)
+    {
+        Ssid = n.Ssid;
+        Vendor = n.Vendor;
+        Rssi = n.Rssi;
+        SignalPercent = n.SignalPercent;
+        Channel = n.Channel;
+        ChannelWidthMhz = n.ChannelWidthMhz;
+        CenterChannel = n.CenterChannel;
+        FrequencyMhz = n.FrequencyMhz;
+        Band = n.Band;
+        Standards = n.Standards;
+        Security = n.Security;
+        Cipher = n.Cipher;
+        WpsVersion = n.WpsVersion;
+        RatesCsv = n.RatesCsv;
+        IsConnected = n.IsConnected;
+        LastSeen = now;
+        IsStale = false;
+        LastSeenText = "now";
+
+        History.Add((now, n.Rssi));
+        while (History.Count > 0 && now - History[0].Time > TimeSpan.FromMinutes(10))
+            History.RemoveAt(0);
+    }
+
+    /// <summary>Refresh age display; entries not seen recently become stale.</summary>
+    public void Tick(DateTime now, TimeSpan staleAfter)
+    {
+        var age = now - LastSeen;
+        LastSeenText = age.TotalSeconds < 8 ? "now" : $"{(int)age.TotalSeconds}s ago";
+        IsStale = age >= staleAfter;
+        if (IsStale) IsConnected = false;
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    private bool Set<T>(ref T field, T value, [CallerMemberName] string? name = null)
+    {
+        if (EqualityComparer<T>.Default.Equals(field, value)) return false;
+        field = value;
+        OnPropertyChanged(name);
+        return true;
+    }
+
+    private void OnPropertyChanged(string? name) =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+}
