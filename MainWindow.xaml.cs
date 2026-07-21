@@ -297,7 +297,9 @@ public partial class MainWindow : Window
     private void Filter_Changed(object sender, RoutedEventArgs e)
     {
         if (_view is null || _peersView is null) return; // fires during InitializeComponent
-        MinRssiLabel.Text = $"{(int)MinRssiSlider.Value} dBm";
+        MinRssiLabel.Text = MinRssiSlider.Value <= MinRssiSlider.Minimum
+            ? "any"
+            : $"{(int)MinRssiSlider.Value} dBm";
         _view.Refresh();
         _peersView.Refresh();
         UpdateGraphs();

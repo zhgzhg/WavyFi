@@ -135,12 +135,13 @@
                             <Border Height="4" CornerRadius="2" Background="#3A3A46"
                                     VerticalAlignment="Center"/>
                             <Track x:Name="PART_Track">
+                                <!-- Threshold semantics: the accent fill sits on the
+                                     PASSING side (right of the thumb = stronger signals). -->
                                 <Track.DecreaseRepeatButton>
                                     <RepeatButton Command="Slider.DecreaseLarge" Focusable="False">
                                         <RepeatButton.Template>
                                             <ControlTemplate TargetType="RepeatButton">
-                                                <Border Height="4" CornerRadius="2" Background="#3A5A8C"
-                                                        VerticalAlignment="Center"/>
+                                                <Rectangle Fill="Transparent"/>
                                             </ControlTemplate>
                                         </RepeatButton.Template>
                                     </RepeatButton>
@@ -149,7 +150,8 @@
                                     <RepeatButton Command="Slider.IncreaseLarge" Focusable="False">
                                         <RepeatButton.Template>
                                             <ControlTemplate TargetType="RepeatButton">
-                                                <Rectangle Fill="Transparent"/>
+                                                <Border Height="4" CornerRadius="2" Background="#3A5A8C"
+                                                        VerticalAlignment="Center"/>
                                             </ControlTemplate>
                                         </RepeatButton.Template>
                                     </RepeatButton>
@@ -206,10 +208,15 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="3*"/>
-            <ColumnDefinition Width="12"/>
-            <ColumnDefinition Width="1.2*"/>
+            <ColumnDefinition Width="3*" MinWidth="460"/>
+            <ColumnDefinition Width="10"/>
+            <ColumnDefinition Width="1.2*" MinWidth="280"/>
         </Grid.ColumnDefinitions>
+
+        <!-- Quadrants 1+2 vs 3: horizontal resize -->
+        <GridSplitter Grid.Row="1" Grid.Column="1" Width="6"
+                      HorizontalAlignment="Center" VerticalAlignment="Stretch"
+                      Background="#2C2C36" ResizeBehavior="PreviousAndNext"/>
 
         <!-- Toolbar -->
         <DockPanel Grid.Row="0" Grid.ColumnSpan="3" Margin="0,0,0,10">
@@ -238,10 +245,15 @@
         <Grid Grid.Row="1" Grid.Column="0">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
-                <RowDefinition Height="3*"/>
-                <RowDefinition Height="12"/>
-                <RowDefinition Height="2*" MinHeight="200"/>
+                <RowDefinition Height="3*" MinHeight="140"/>
+                <RowDefinition Height="10"/>
+                <RowDefinition Height="2*" MinHeight="160"/>
             </Grid.RowDefinitions>
+
+            <!-- Quadrant 1 vs 2: vertical resize -->
+            <GridSplitter Grid.Row="2" Height="6"
+                          HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                          Background="#2C2C36" ResizeBehavior="PreviousAndNext"/>
 
             <StackPanel Grid.Row="0">
                 <TextBlock Style="{StaticResource SectionHeader}" Text="NEARBY NETWORKS"/>
@@ -260,13 +272,14 @@
                         <ComboBoxItem Content="5 GHz"/>
                         <ComboBoxItem Content="6 GHz"/>
                     </ComboBox>
-                    <TextBlock Text="Min signal:" VerticalAlignment="Center" Margin="0,0,6,0"
+                    <TextBlock Text="Signal ≥" VerticalAlignment="Center" Margin="0,0,6,0"
                                Foreground="#8A8A94"/>
                     <Slider x:Name="MinRssiSlider" Width="140" Minimum="-100" Maximum="-30"
                             Value="-100" VerticalAlignment="Center"
+                            ToolTip="Hide networks and WiFi Direct peers weaker than this — the highlighted part of the track is what passes"
                             ValueChanged="Filter_Changed"/>
-                    <TextBlock x:Name="MinRssiLabel" Text="-100 dBm" VerticalAlignment="Center"
-                               Margin="6,0,0,0" Foreground="#8A8A94" MinWidth="60"/>
+                    <TextBlock x:Name="MinRssiLabel" Text="any" VerticalAlignment="Center"
+                               Margin="6,0,0,0" Foreground="#8A8A94" MinWidth="64"/>
                 </WrapPanel>
             </StackPanel>
 
