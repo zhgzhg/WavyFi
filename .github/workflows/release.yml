@@ -26,9 +26,9 @@ jobs:
         run: |
           $version = $env:GITHUB_REF_NAME.TrimStart('v')
 
-          # Self-contained single-file exe per architecture: download and run,
-          # no runtime install needed.
           foreach ($rid in 'win-x64', 'win-arm64') {
+            # Self-contained single-file exe: download and run, no runtime
+            # install needed.
             dotnet publish src/WavyFi -c Release -r $rid --self-contained `
               -p:PublishSingleFile=true `
               -p:IncludeNativeLibrariesForSelfExtract=true `
@@ -37,17 +37,17 @@ jobs:
             if ($LASTEXITCODE -ne 0) { exit 1 }
             Compress-Archive -Path "out/$rid/WavyFi.exe", 'LICENSE', 'README.md' `
               -DestinationPath "WavyFi-$version-$rid.zip"
-          }
 
-          # Small variant for users who already have the .NET Desktop Runtime.
-          # (No EnableCompressionInSingleFile here: the SDK only supports it
-          # for self-contained publishes — NETSDK1176.)
-          dotnet publish src/WavyFi -c Release -r win-x64 --self-contained false `
-            -p:PublishSingleFile=true -p:DebugType=none -p:Version=$version `
-            -o out/fdd
-          if ($LASTEXITCODE -ne 0) { exit 1 }
-          Compress-Archive -Path 'out/fdd/WavyFi.exe', 'LICENSE', 'README.md' `
-            -DestinationPath "WavyFi-$version-win-x64-framework-dependent.zip"
+            # Small variant for users who already have the .NET Desktop
+            # Runtime. (No EnableCompressionInSingleFile here: the SDK only
+            # supports it for self-contained publishes — NETSDK1176.)
+            dotnet publish src/WavyFi -c Release -r $rid --self-contained false `
+              -p:PublishSingleFile=true -p:DebugType=none -p:Version=$version `
+              -o "out/$rid-fdd"
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+            Compress-Archive -Path "out/$rid-fdd/WavyFi.exe", 'LICENSE', 'README.md' `
+              -DestinationPath "WavyFi-$version-$rid-framework-dependent.zip"
+          }
 
       - name: Create draft release
         env:
