@@ -25,6 +25,25 @@
             <Setter Property="Padding" Value="4,2"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
         </Style>
+        <!-- Without this, tooltips keep the OS light background while picking
+             up the implicit light TextBlock foreground — unreadable. -->
+        <Style TargetType="ToolTip">
+            <Setter Property="Background" Value="#26262E"/>
+            <Setter Property="Foreground" Value="#E8E8EC"/>
+            <Setter Property="BorderBrush" Value="#3A3A46"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToolTip">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="1" CornerRadius="2"
+                                Padding="8,5">
+                            <ContentPresenter/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <Style x:Key="ToolButton" TargetType="Button">
             <Setter Property="Foreground" Value="#E8E8EC"/>
             <Setter Property="Background" Value="#26262E"/>
