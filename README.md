@@ -1,5 +1,9 @@
 # WavyFi
 
+<img src="docs/icon.png" width="128" alt="WavyFi logo"/>
+
+> *Windows WiFi scanner that also sees WiFi Direct peers — phones, TVs, Miracast.*
+
 WavyFi listens to the airwaves around a Windows machine and turns what it
 hears into advice: which channel your own WiFi network should use, which
 band is worth moving to, and which security settings need fixing. Along
