@@ -40,9 +40,11 @@ jobs:
           }
 
           # Small variant for users who already have the .NET Desktop Runtime.
+          # (No EnableCompressionInSingleFile here: the SDK only supports it
+          # for self-contained publishes — NETSDK1176.)
           dotnet publish src/WavyFi -c Release -r win-x64 --self-contained false `
-            -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true `
-            -p:DebugType=none -p:Version=$version -o out/fdd
+            -p:PublishSingleFile=true -p:DebugType=none -p:Version=$version `
+            -o out/fdd
           if ($LASTEXITCODE -ne 0) { exit 1 }
           Compress-Archive -Path 'out/fdd/WavyFi.exe', 'LICENSE', 'README.md' `
             -DestinationPath "WavyFi-$version-win-x64-framework-dependent.zip"
