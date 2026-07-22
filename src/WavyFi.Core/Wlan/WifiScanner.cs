@@ -13,8 +13,16 @@ public sealed class WifiScanner : IDisposable
     private readonly WlanInterop.WlanNotificationCallback _notificationCallback;
     // Swapped atomically as a whole list — read from the notification thread.
     private List<WlanAdapter> _selected = new();
+    // Swapped atomically as a whole list — rebuilt by each GetNetworks sweep.
+    private List<string> _poweredOff = new();
 
     public IReadOnlyList<WlanAdapter> SelectedAdapters => _selected;
+
+    /// <summary>Descriptions of selected adapters whose radio was soft-disabled
+    /// (WiFi quick-setting toggle or airplane mode) during the last GetNetworks
+    /// sweep. They stay selected — scanning resumes without intervention when
+    /// the radio comes back.</summary>
+    public IReadOnlyList<string> PoweredOffAdapters => _poweredOff;
 
     public string InterfaceDescription => _selected.Count switch
     {
@@ -140,15 +148,20 @@ public sealed class WifiScanner : IDisposable
         if (_selected.Count == 0)
         {
             SelectFirstAdapter();
-            if (_selected.Count == 0) return Array.Empty<WifiNetwork>();
+            if (_selected.Count == 0)
+            {
+                _poweredOff = new List<string>();
+                return Array.Empty<WifiNetwork>();
+            }
         }
 
         var results = new List<WifiNetwork>();
+        var poweredOff = new List<string>();
         List<WlanAdapter>? vanished = null;
 
         foreach (var adapter in _selected)
         {
-            var batch = GetNetworksFor(adapter);
+            var batch = GetNetworksFor(adapter, poweredOff);
             if (batch is null)
                 (vanished ??= new List<WlanAdapter>()).Add(adapter);
             else
@@ -166,11 +179,13 @@ public sealed class WifiScanner : IDisposable
             }
         }
 
+        _poweredOff = poweredOff;
         return results;
     }
 
-    /// <summary>One adapter's scan results, or null if the adapter vanished.</summary>
-    private IReadOnlyList<WifiNetwork>? GetNetworksFor(WlanAdapter adapter)
+    /// <summary>One adapter's scan results, or null if the adapter vanished.
+    /// A powered-down radio yields an empty batch plus a poweredOff entry.</summary>
+    private IReadOnlyList<WifiNetwork>? GetNetworksFor(WlanAdapter adapter, List<string> poweredOff)
     {
         var interfaceGuid = adapter.Guid;
         var securityBySsid = ReadSecurityInfo(interfaceGuid);
@@ -185,6 +200,17 @@ public sealed class WifiScanner : IDisposable
             if (result == 5)
                 throw new InvalidOperationException(
                     "Access denied reading scan results. Check that Location access is enabled in Windows Settings > Privacy & security > Location.");
+
+            // Soft radio-off (the WiFi quick-setting toggle or airplane mode)
+            // keeps the interface enumerable but fails every query with this
+            // NDIS code (ERROR_NDIS_DOT11_POWER_STATE_INVALID). An expected,
+            // recoverable state — reported instead of thrown so the scan loop
+            // keeps ticking and resumes when the radio comes back.
+            if (result == 0x80342002)
+            {
+                poweredOff.Add(adapter.Description);
+                return Array.Empty<WifiNetwork>();
+            }
 
             if (EnumerateAdapters().All(a => a.Guid != adapter.Guid))
                 return null; // unplugged / disabled

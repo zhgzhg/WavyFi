@@ -135,7 +135,11 @@ public partial class MainWindow : Window
             // Skip the update while the user is selecting/copying from the box.
             if (!AdviceText.IsKeyboardFocusWithin)
                 AdviceText.Text = ChannelAdvisor.BuildReport(_store.Entries.ToList());
-            StatusText.Text = "Scanning every 5 s.";
+            var off = _scanner.PoweredOffAdapters;
+            StatusText.Text = off.Count == 0 ? "Scanning every 5 s."
+                : off.Count == _scanner.SelectedAdapters.Count
+                    ? "WiFi is turned off — turn it back on in quick settings or Settings > Network & internet to resume scanning."
+                    : $"Radio off on {string.Join(", ", off)} — scanning continues on the other adapters.";
             StatsText.Text = $"{networks.Count} in range  ·  {_store.Entries.Count} tracked  ·  " +
                              $"updated {DateTime.Now:HH:mm:ss}";
 

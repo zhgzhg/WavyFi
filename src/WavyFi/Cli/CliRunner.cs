@@ -158,7 +158,16 @@ internal static class CliRunner
             return 0;
         }
 
-        return opts.Mode == Mode.P2p ? RunP2p(opts) : RunScan(opts);
+        try
+        {
+            return opts.Mode == Mode.P2p ? RunP2p(opts) : RunScan(opts);
+        }
+        catch (InvalidOperationException ex)
+        {
+            // Curated scanner failures (Location denied, adapter gone).
+            Console.Error.WriteLine($"WavyFi: {ex.Message}");
+            return 1;
+        }
     }
 
     // ----- networks ------------------------------------------------------
@@ -214,6 +223,20 @@ internal static class CliRunner
         do
         {
             var networks = Sweep(scanner, selected.Count, opts.TimeoutSeconds ?? 6);
+
+            var off = scanner.PoweredOffAdapters;
+            if (off.Count > 0 && off.Count == scanner.SelectedAdapters.Count)
+            {
+                Console.Error.WriteLine(
+                    "WavyFi: WiFi is turned off — turn it back on in quick settings or Settings > Network & internet.");
+                if (opts.WatchSeconds is null) return 1;
+            }
+            else if (off.Count > 0)
+            {
+                Console.Error.WriteLine(
+                    $"WavyFi: radio off on {string.Join(", ", off)} — results are from the remaining adapters.");
+            }
+
             var filtered = FilterNetworks(networks, opts);
 
             if (opts.Csv)
