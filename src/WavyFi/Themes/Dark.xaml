@@ -44,6 +44,74 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <!-- Context menus (cell copy, column chooser, graph export): like the
+             tooltips, default chrome is light while the implicit TextBlock
+             foreground is light — restyle to the theme. -->
+        <Style TargetType="ContextMenu">
+            <Setter Property="Background" Value="#26262E"/>
+            <Setter Property="Foreground" Value="#E8E8EC"/>
+            <Setter Property="BorderBrush" Value="#3A3A46"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ContextMenu">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="1" Padding="2">
+                            <ItemsPresenter/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <!-- Covers both plain and checkable items (the column chooser); the
+             first column reserves space for the check mark so headers align.
+             No submenu support — the app has none. -->
+        <Style TargetType="MenuItem">
+            <Setter Property="Foreground" Value="#E8E8EC"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="MenuItem">
+                        <Border x:Name="Bd" Background="Transparent" Padding="6,4">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="18"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Path x:Name="Check" Data="M 0 4 L 3.5 7.5 L 9 0"
+                                      Stroke="#9BB4D9" StrokeThickness="2"
+                                      VerticalAlignment="Center" Visibility="Collapsed"/>
+                                <ContentPresenter Grid.Column="1" ContentSource="Header"
+                                                  VerticalAlignment="Center"
+                                                  RecognizesAccessKey="True"/>
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Check" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#3A5A8C"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <!-- Separators inside menus resolve this key, not the implicit
+             Separator style. -->
+        <Style x:Key="{x:Static MenuItem.SeparatorStyleKey}" TargetType="Separator">
+            <Setter Property="Margin" Value="4,3"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Separator">
+                        <Rectangle Height="1" Fill="#3A3A46"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <Style x:Key="ToolButton" TargetType="Button">
             <Setter Property="Foreground" Value="#E8E8EC"/>
             <Setter Property="Background" Value="#26262E"/>
