@@ -618,6 +618,7 @@ internal static class CliRunner
 
             Usage: WavyFi.exe scan [options]      scan for WiFi networks (default)
                    WavyFi.exe p2p  [options]      list advertising WiFi Direct peers
+                   WavyFi.exe --demo              GUI with synthetic showcase data
                    (no arguments starts the GUI)
 
             Options (scan):

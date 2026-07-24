@@ -26,10 +26,12 @@ public partial class MainWindow : Window
     private readonly PeerStore _peerStore = new();
     private readonly ListCollectionView _view;
     private readonly ListCollectionView _peersView;
+    private readonly Demo.DemoData? _demo;
     private bool _refreshing;
 
-    public MainWindow()
+    public MainWindow(bool demo = false)
     {
+        _demo = demo ? new Demo.DemoData() : null;
         InitializeComponent();
         UserSettings.Restore(this);
         UserSettings.RestoreColumnLayout("net", NetworksGrid);
@@ -99,7 +101,7 @@ public partial class MainWindow : Window
             LeftColumn.MinWidth = Math.Ceiling(
                 FilterRow1.Children.OfType<FrameworkElement>().Sum(c => c.DesiredSize.Width)) + 2;
 
-            _wifiDirect.Start();
+            if (_demo is null) _wifiDirect.Start();
             if (ScanToggle.IsChecked == true)
             {
                 await RefreshAsync();
@@ -121,13 +123,20 @@ public partial class MainWindow : Window
         _refreshing = true;
         try
         {
-            var networks = await Task.Run(() =>
-            {
-                if (triggerScan) _scanner.TriggerScan();
-                return _scanner.GetNetworks();
-            });
+            IReadOnlyList<WifiNetwork> networks = _demo is not null
+                ? _demo.NextScan()
+                : await Task.Run(() =>
+                {
+                    if (triggerScan) _scanner.TriggerScan();
+                    return _scanner.GetNetworks();
+                });
 
             _store.ApplyScan(networks, DateTime.Now);
+            if (_demo is not null)
+            {
+                _peerStore.Apply(_demo.Peers(DateTime.Now), DateTime.Now);
+                _peersView.Refresh();
+            }
             _view.Refresh();
             UpdateGraphs();
             // Advise from the persistent store, not the raw scan — single scans
@@ -135,19 +144,29 @@ public partial class MainWindow : Window
             // Skip the update while the user is selecting/copying from the box.
             if (!AdviceText.IsKeyboardFocusWithin)
                 AdviceText.Text = ChannelAdvisor.BuildReport(_store.Entries.ToList());
-            var off = _scanner.PoweredOffAdapters;
-            StatusText.Text = off.Count == 0 ? "Scanning every 5 s."
-                : off.Count == _scanner.SelectedAdapters.Count
-                    ? "WiFi is turned off — turn it back on in quick settings or Settings > Network & internet to resume scanning."
-                    : $"Radio off on {string.Join(", ", off)} — scanning continues on the other adapters.";
+            if (_demo is not null)
+            {
+                StatusText.Text = "Scanning every 5 s.";
+            }
+            else
+            {
+                var off = _scanner.PoweredOffAdapters;
+                StatusText.Text = off.Count == 0 ? "Scanning every 5 s."
+                    : off.Count == _scanner.SelectedAdapters.Count
+                        ? "WiFi is turned off — turn it back on in quick settings or Settings > Network & internet to resume scanning."
+                        : $"Radio off on {string.Join(", ", off)} — scanning continues on the other adapters.";
+            }
             StatsText.Text = $"{networks.Count} in range  ·  {_store.Entries.Count} tracked  ·  " +
                              $"updated {DateTime.Now:HH:mm:ss}";
 
-            // The scanner may have dropped a vanished adapter (unplug).
-            var live = _scanner.SelectedAdapters.Select(a => a.Guid).ToHashSet();
-            var shown = _adapterChoices.Where(c => c.IsSelected).Select(c => c.Adapter.Guid).ToHashSet();
-            if (!live.SetEquals(shown))
-                ReloadAdapterList();
+            if (_demo is null)
+            {
+                // The scanner may have dropped a vanished adapter (unplug).
+                var live = _scanner.SelectedAdapters.Select(a => a.Guid).ToHashSet();
+                var shown = _adapterChoices.Where(c => c.IsSelected).Select(c => c.Adapter.Guid).ToHashSet();
+                if (!live.SetEquals(shown))
+                    ReloadAdapterList();
+            }
         }
         catch (Exception ex)
         {
@@ -493,6 +512,13 @@ public partial class MainWindow : Window
 
     private void ReloadAdapterList()
     {
+        if (_demo is not null)
+        {
+            // No real hardware in the screenshot: a fixed made-up adapter.
+            AdapterSummary.Text = Demo.DemoData.AdapterDisplay;
+            return;
+        }
+
         _reloadingAdapters = true;
         try
         {
