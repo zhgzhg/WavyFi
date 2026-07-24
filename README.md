@@ -11,6 +11,8 @@ the way it surfaces a layer most WiFi analyzers ignore entirely — the
 **WiFi Direct** devices (phones, TVs, printers, Miracast receivers)
 advertising peer-to-peer around you.
 
+![WavyFi main window: network table with channel occupancy graphs, recommendations, WiFi Direct devices and signal history](docs/WavyFiScreenshot.png)
+
 The channel-occupancy view takes its inspiration from inSSIDer, but
 WavyFi goes its own way:
 
@@ -90,6 +92,7 @@ and piping work):
 ```
 WavyFi.exe scan [options]    scan for WiFi networks (default verb)
 WavyFi.exe p2p  [options]    list advertising WiFi Direct peers
+WavyFi.exe --demo            GUI with synthetic showcase data (the screenshot above)
 
   --adapters all|N[,M...]  (scan) adapters to use (default: the first one)
   --list-adapters          (scan) list adapters with their indexes and exit
